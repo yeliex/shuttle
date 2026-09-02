@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shuttle": {
+      "title": "Shuttle",
+      "description": "Collaborate through explicitly shared Codex tasks.",
+      "cwd": ".",
+      "command": "node",
+      "args": ["./runtime/cli.mjs", "mcp"]
+    }
+  }
+}

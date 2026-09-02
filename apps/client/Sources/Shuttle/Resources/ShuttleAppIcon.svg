@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="149 149 418 418">
+  <defs>
+    <linearGradient id="tile" x1="358" y1="164" x2="358" y2="552" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#f4f4f5"/></linearGradient>
+    <linearGradient id="mark" x1="358" y1="182" x2="358" y2="533" gradientUnits="userSpaceOnUse"><stop stop-color="#c7b7ff"/><stop offset=".48" stop-color="#6f92ff"/><stop offset="1" stop-color="#432fff"/></linearGradient>
+    <linearGradient id="glyph" x1="358" y1="309" x2="358" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#eef2ff"/></linearGradient>
+  </defs>
+  <rect x="164" y="164" width="388" height="388" rx="88" fill="url(#tile)" stroke="#d4d4d8" stroke-width="4"/>
+  <path d="M248 248c11-38 46-66 87-66 25 0 47 10 63 26 8-2 16-3 24-3 49 0 88 40 88 89 0 8-1 16-3 24 16 16 26 38 26 63 0 41-28 76-65 87-11 37-46 65-87 65-25 0-47-10-63-26-8 2-16 3-24 3-49 0-88-39-88-88 0-8 1-16 3-24-16-16-26-38-26-63 0-41 28-76 65-87Z" fill="url(#mark)" stroke="#8eb1ff" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+  <path d="M277 309 303.4 357.7c1.2 2.1 1.1 4-.1 6.1L277 410" fill="none" stroke="url(#glyph)" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"/>
+  <path d="M376 409c15-11 45 11 60 0" fill="none" stroke="url(#glyph)" stroke-linecap="round" stroke-width="16"/>
+  <circle cx="361" cy="409" r="11" fill="none" stroke="url(#glyph)" stroke-width="8.5"/><circle cx="451" cy="409" r="11" fill="none" stroke="url(#glyph)" stroke-width="8.5"/>
+</svg>

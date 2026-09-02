@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "shuttle-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "keep_vars": true,
+  "assets": {
+    "directory": "./.assets",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "migrations_dir": "prisma/migrations",
+      "migrations_pattern": "prisma/migrations/*/migration.sql",
+      "database_id": "9fab8f57-a14b-42d7-9665-4ab4602e95b2"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "THREAD_HUB",
+        "class_name": "ThreadHub"
+      },
+      {
+        "name": "PREVIEW_HUB",
+        "class_name": "PreviewHub"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ThreadHub", "PreviewHub"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

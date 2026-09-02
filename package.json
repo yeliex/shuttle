@@ -1,0 +1,40 @@
+{
+  "name": "shuttle",
+  "version": "0.0.0",
+  "description": "Share Codex tasks and local previews with collaborators.",
+  "private": true,
+  "packageManager": "pnpm@11.25.0+sha512.5cde925b4f075f725eb71fbae18a42ffe784524789f19b61c731cb8721ec28aaee160e01a8d5af4fedb2a42cdbf300efe23db356b0d4a17b4d63e11f8ab7c956",
+  "scripts": {
+    "start": "pnpm build:assets && pnpm --parallel --stream --filter @shuttle/site --filter @shuttle/web --filter @shuttle/relay run dev",
+    "build": "pnpm --filter @shuttle/contracts build && pnpm build:assets && pnpm --filter @shuttle/companion build && pnpm build:plugin && pnpm --filter @shuttle/relay build",
+    "build:assets": "pnpm --filter @shuttle/site build && pnpm --filter @shuttle/web build && node scripts/assemble-assets.mjs",
+    "build:macos": "node scripts/package-macos.mjs",
+    "build:plugin": "pnpm --filter @shuttle/companion build:plugin",
+    "build:appcast": "node scripts/generate-appcast.mjs",
+    "dev:site": "pnpm --filter @shuttle/site dev",
+    "dev:web": "pnpm --filter @shuttle/web dev",
+    "dev:relay": "pnpm build:assets && pnpm --filter @shuttle/relay dev",
+    "lint": "oxlint apps/site/src apps/web/src apps/relay/src apps/relay/tests apps/relay/scripts apps/companion/src apps/companion/tests apps/companion/scripts packages/ui/src packages/contracts/src scripts --deny-warnings",
+    "test:type": "tsc --build --verbose --incremental && pnpm --filter @shuttle/site typecheck",
+    "typecheck": "pnpm test:type"
+  },
+  "keywords": [
+    "codex",
+    "collaboration",
+    "cloudflare"
+  ],
+  "author": "yeliex",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4",
+    "@tsconfig/strictest": "^2.0.8",
+    "@tsconfig/vite-react": "^8.0.6",
+    "@types/node": "catalog:",
+    "@yeliex/tsconfig": "^1.0.0",
+    "oxlint": "^1.80.0",
+    "pkgroll": "^2.28.1",
+    "tsx": "^4.22.4",
+    "typescript": "catalog:"
+  }
+}

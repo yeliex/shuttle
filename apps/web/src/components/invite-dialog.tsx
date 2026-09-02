@@ -1,0 +1,264 @@
+import { Alert, AlertDescription, AlertTitle } from '@/ui/alert';
+import { Button } from '@/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/ui/dialog';
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/ui/field';
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+} from '@/ui/input-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { Spinner } from '@/ui/spinner';
+import { toast } from '@/ui/sonner';
+import { Toggle } from '@/ui/toggle';
+import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group';
+import type { SharePermission } from '@shuttle/contracts';
+import { CheckCircle2Icon, CopyIcon, LinkIcon, MailIcon, MonitorUpIcon, UserPlusIcon } from 'lucide-react';
+import { useState } from 'react';
+import useSWRMutation from 'swr/mutation';
+
+import { createInvite, type CreateInviteResult } from '@/libs/api.ts';
+
+interface InviteValues {
+    canPreview: boolean;
+    email?: string;
+    expiresInHours: number;
+    permission: SharePermission;
+}
+
+export function InviteDialog({
+    hasServices,
+    onCreated,
+    sharedThreadId,
+    title,
+}: {
+    hasServices: boolean;
+    onCreated: () => void;
+    sharedThreadId: string;
+    title: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [email, setEmail] = useState('');
+    const [canPreview, setCanPreview] = useState(false);
+    const [expiresInHours, setExpiresInHours] = useState(24);
+    const [permission, setPermission] = useState<SharePermission>('read');
+    const [result, setResult] = useState<CreateInviteResult>();
+    const { error, isMutating, trigger } = useSWRMutation(
+        ['create-invite', sharedThreadId],
+        (_key, { arg }: { arg: InviteValues }) => createInvite(sharedThreadId, arg),
+    );
+
+    const setDialogOpen = (nextOpen: boolean) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+            setResult(undefined);
+        }
+    };
+
+    const submit = async (event: React.FormEvent) => {
+        event.preventDefault();
+        const invite = await trigger({
+            canPreview,
+            email: email.trim() || undefined,
+            expiresInHours,
+            permission,
+        });
+        setResult(invite);
+        onCreated();
+    };
+
+    const copyInvite = async () => {
+        if (!result) {
+            return;
+        }
+        await navigator.clipboard.writeText(result.inviteURL);
+        toast.success('Invitation link copied');
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <UserPlusIcon data-icon="inline-start" />
+                    Invite people
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Share “{title}”</DialogTitle>
+                    <DialogDescription>
+                        Invite someone to use this task from Codex through Shuttle tools.
+                    </DialogDescription>
+                </DialogHeader>
+
+                {result ? (
+                    <InviteResult
+                        emailBound={email.trim().length > 0}
+                        result={result}
+                        sharedThreadId={sharedThreadId}
+                        onCopy={copyInvite}
+                    />
+                ) : (
+                    <form id="invite-form" onSubmit={submit}>
+                        <FieldGroup>
+                            <Field>
+                                <FieldLabel htmlFor="invite-email">Email address (optional)</FieldLabel>
+                                <InputGroup>
+                                    <InputGroupInput
+                                        id="invite-email"
+                                        type="email"
+                                        placeholder="teammate@example.com"
+                                        value={email}
+                                        onChange={(event) => setEmail(event.target.value)}
+                                    />
+                                    <InputGroupAddon align="inline-end">
+                                        <MailIcon />
+                                    </InputGroupAddon>
+                                </InputGroup>
+                                <FieldDescription>
+                                    With an email, only that account can accept. Leave empty for a shareable link.
+                                </FieldDescription>
+                            </Field>
+
+                            <Field>
+                                <FieldLabel>Permission</FieldLabel>
+                                <ToggleGroup
+                                    type="single"
+                                    value={permission}
+                                    onValueChange={(value) => value && setPermission(value as SharePermission)}
+                                    variant="outline"
+                                    spacing={0}
+                                    className="w-full"
+                                >
+                                    <ToggleGroupItem value="read" className="flex-1">Read</ToggleGroupItem>
+                                    <ToggleGroupItem value="message" className="flex-1">Read & message</ToggleGroupItem>
+                                </ToggleGroup>
+                            </Field>
+
+                            {hasServices && (
+                                <Field>
+                                    <FieldLabel>Local services</FieldLabel>
+                                    <Toggle
+                                        variant="outline"
+                                        pressed={canPreview}
+                                        onPressedChange={setCanPreview}
+                                        className="w-full justify-start"
+                                    >
+                                        <MonitorUpIcon data-icon="inline-start" />
+                                        Allow access to included services
+                                    </Toggle>
+                                    <FieldDescription>
+                                        Service access follows this invitation and can be changed per person later.
+                                    </FieldDescription>
+                                </Field>
+                            )}
+
+                            <Field>
+                                <FieldLabel>Link expires</FieldLabel>
+                                <Select
+                                    value={String(expiresInHours)}
+                                    onValueChange={(value) => setExpiresInHours(Number(value))}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="24">In 24 hours</SelectItem>
+                                        <SelectItem value="168">In 7 days</SelectItem>
+                                        <SelectItem value="720">In 30 days</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+                        </FieldGroup>
+                    </form>
+                )}
+
+                {error && <p className="text-sm text-destructive">{error.message}</p>}
+                <DialogFooter>
+                    {result ? (
+                        <Button onClick={() => setDialogOpen(false)}>Done</Button>
+                    ) : (
+                        <Button form="invite-form" type="submit" disabled={isMutating}>
+                            {isMutating && <Spinner />}
+                            Create invitation
+                        </Button>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function InviteResult({
+    emailBound,
+    onCopy,
+    result,
+    sharedThreadId,
+}: {
+    emailBound: boolean;
+    onCopy: () => void;
+    result: CreateInviteResult;
+    sharedThreadId: string;
+}) {
+    const delivery = {
+        failed: ['Email could not be sent', 'The invitation is ready; copy the link below instead.'],
+        'not-configured': ['Email is not configured', 'The invitation is ready; send the link manually.'],
+        'not-requested': ['Invitation link created', 'Anyone with this link can accept until it expires.'],
+        sent: ['Invitation email sent', 'A copyable link is also available below.'],
+    }[result.emailDelivery];
+    const usagePrompt = `Open and accept this Shuttle task invitation:
+${result.inviteURL}
+
+Then use the Shuttle skill in a new Codex task to read:
+shuttle://shared/${sharedThreadId}
+
+If Shuttle is not initialized, first read https://shuttle.makesth.fun/Agents.md and follow the setup instructions. To send feedback, use Shuttle's send_shared_message tool for the same shared task.`;
+
+    const copyPrompt = async () => {
+        await navigator.clipboard.writeText(usagePrompt);
+        toast.success('Message copied');
+    };
+
+    return (
+        <div className="grid gap-5">
+            <Alert>
+                {result.emailDelivery === 'sent' ? <CheckCircle2Icon /> : <LinkIcon />}
+                <AlertTitle>{delivery[0]}</AlertTitle>
+                <AlertDescription>{delivery[1]}</AlertDescription>
+            </Alert>
+            <Field>
+                <FieldLabel>Invitation link</FieldLabel>
+                <InputGroup>
+                    <InputGroupInput readOnly value={result.inviteURL} />
+                    <InputGroupButton aria-label="Copy invitation link" onClick={onCopy}>
+                        <CopyIcon />
+                        Copy
+                    </InputGroupButton>
+                </InputGroup>
+            </Field>
+            {emailBound && (
+                <Field>
+                    <div className="flex items-center justify-between gap-3">
+                        <FieldLabel>Message for your collaborator</FieldLabel>
+                        <Button type="button" variant="outline" size="sm" onClick={copyPrompt}>
+                            <CopyIcon />
+                            Copy prompt
+                        </Button>
+                    </div>
+                    <pre className="max-h-52 overflow-auto whitespace-pre-wrap rounded-xl bg-muted/60 p-4 font-mono text-xs leading-5 text-muted-foreground">
+                        {usagePrompt}
+                    </pre>
+                </Field>
+            )}
+        </div>
+    );
+}

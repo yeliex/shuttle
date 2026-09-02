@@ -1,0 +1,32 @@
+import tailwindcss from '@tailwindcss/vite';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig } from 'vite';
+
+// https://vite.dev/config/
+export default defineConfig((env) => ({
+    base: env.command === 'serve' ? '/' : '/app/',
+    plugins: [
+        tanstackRouter({
+            target: 'react',
+            autoCodeSplitting: true,
+            indexToken: 'page',
+            routeToken: 'layout',
+            routesDirectory: './src/pages',
+            routeFileIgnorePrefix: '-',
+        }),
+        react(),
+        tailwindcss(),
+    ],
+    resolve: {
+        tsconfigPaths: true,
+    },
+    server: {
+        host: '0.0.0.0',
+        port: 25302,
+        strictPort: true,
+        proxy: {
+            '/api': 'http://127.0.0.1:8787',
+        },
+    },
+}));

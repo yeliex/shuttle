@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Shuttle</string>
+    <key>CFBundleExecutable</key>
+    <string>Shuttle</string>
+    <key>CFBundleIconFile</key>
+    <string>Shuttle</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.yeliex.shuttle</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Shuttle</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__SHUTTLE_VERSION__</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.yeliex.shuttle</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>shuttle</string>
+            </array>
+        </dict>
+    </array>
+    <key>CFBundleVersion</key>
+    <string>__SHUTTLE_BUILD__</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.developer-tools</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>15.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUFeedURL</key>
+    <string>https://github.com/yeliex/shuttle/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>aodUc4lCZJHhA6hodUk5AuHALrEyd2UTevC13kj1Zqg=</string>
+    <key>SUShowReleaseNotes</key>
+    <true/>
+</dict>
+</plist>

@@ -1,0 +1,9 @@
+{
+  "extends": ["@tsconfig/strictest", "@tsconfig/node24", "@yeliex/tsconfig"],
+  "compileOnSave": false,
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true
+  },
+  "include": []
+}

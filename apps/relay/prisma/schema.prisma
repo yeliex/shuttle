@@ -1,0 +1,177 @@
+generator nodeClient {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma-node"
+  runtime             = "nodejs"
+  importFileExtension = "ts"
+}
+
+generator workerClient {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma-worker"
+  runtime             = "workerd"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                     String           @id
+  name                   String
+  email                  String           @unique
+  emailVerified          Boolean          @default(false)
+  image                  String?
+  disabledAt             DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  sessions               Session[]
+  accounts               Account[]
+  devices                Device[]
+  ownedThreads           SharedThread[]   @relation("ThreadOwner")
+  ownedPreviewServices   PreviewService[] @relation("PreviewOwner")
+  grants                 ShareGrant[]
+  acceptedInvites        ShareInvite[]    @relation("InviteAcceptor")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  issuer                String
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model Device {
+  id              String           @id
+  userId          String
+  name            String
+  tokenHash       String           @unique
+  createdAt       DateTime         @default(now())
+  lastSeenAt      DateTime         @default(now())
+  revokedAt       DateTime?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sharedThreads   SharedThread[]
+  previewServices PreviewService[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model SharedThread {
+  id                String           @id
+  ownerId           String
+  deviceId          String
+  codexThreadId     String
+  title             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  owner             User             @relation("ThreadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  device            Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  grants            ShareGrant[]
+  invites           ShareInvite[]
+  previewServices   PreviewService[]
+
+  @@unique([ownerId, codexThreadId])
+  @@index([ownerId])
+  @@index([deviceId])
+  @@map("shared_threads")
+}
+
+model ShareGrant {
+  id             String       @id
+  sharedThreadId String
+  userId         String
+  permission     String
+  canPreview     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  sharedThread   SharedThread @relation(fields: [sharedThreadId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sharedThreadId, userId])
+  @@index([userId])
+  @@map("share_grants")
+}
+
+model ShareInvite {
+  id             String       @id
+  sharedThreadId String
+  tokenHash      String       @unique
+  token          String?
+  recipientEmail String?
+  permission     String
+  canPreview     Boolean      @default(false)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  acceptedById   String?
+  createdAt      DateTime     @default(now())
+  sharedThread   SharedThread @relation(fields: [sharedThreadId], references: [id], onDelete: Cascade)
+  acceptedBy     User?        @relation("InviteAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([sharedThreadId])
+  @@map("share_invites")
+}
+
+model PreviewService {
+  id             String           @id
+  ownerId        String
+  deviceId       String
+  sharedThreadId String
+  name           String
+  localUrl       String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  owner          User             @relation("PreviewOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  device         Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  sharedThread   SharedThread     @relation(fields: [sharedThreadId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, localUrl])
+  @@index([ownerId])
+  @@index([deviceId])
+  @@index([sharedThreadId])
+  @@map("preview_services")
+}

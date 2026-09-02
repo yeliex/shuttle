@@ -1,0 +1,6 @@
+@import "@fontsource-variable/inter";
+@import "../../../packages/ui/src/styles/globals.css";
+
+@theme inline {
+  --font-sans: "Inter Variable", sans-serif;
+}

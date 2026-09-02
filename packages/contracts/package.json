@@ -1,0 +1,25 @@
+{
+  "name": "@shuttle/contracts",
+  "version": "0.0.0",
+  "description": "Shared Shuttle protocol contracts",
+  "private": true,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "pkgroll --clean-dist",
+    "typecheck": "tsc --build --verbose --incremental"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "typebox": "catalog:"
+  }
+}

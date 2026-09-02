@@ -1,0 +1,75 @@
+name: Release macOS app
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build ad-hoc signed app
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: pnpm build:macos -- --version "${VERSION#v}" --build "$GITHUB_RUN_NUMBER"
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$VERSION" \
+            --jq .body \
+            > "artifacts/macos/Shuttle-${VERSION#v}.md"
+          test -s "artifacts/macos/Shuttle-${VERSION#v}.md"
+
+      - name: Generate signed Sparkle appcast
+        env:
+          SHUTTLE_SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ github.ref_name }}
+        run: pnpm build:appcast -- --version "${VERSION#v}"
+
+      - name: Verify release artifacts
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          codesign --verify --deep --strict --verbose=2 artifacts/macos/Shuttle.app
+          test -f "artifacts/release/Shuttle-${VERSION#v}.zip"
+          test -s "artifacts/release/Shuttle-${VERSION#v}.md"
+          grep -q 'sparkle:edSignature=' artifacts/release/appcast.xml
+          grep -q '<description sparkle:format="markdown">' artifacts/release/appcast.xml
+          grep -q "releases/download/${VERSION}/Shuttle-${VERSION#v}.zip" artifacts/release/appcast.xml
+
+      - name: Publish latest GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VERSION" \
+            "artifacts/release/Shuttle-${VERSION#v}.zip" \
+            artifacts/release/appcast.xml \
+            --verify-tag \
+            --notes-file "artifacts/release/Shuttle-${VERSION#v}.md" \
+            --latest \
+            --title "Shuttle ${VERSION#v}"

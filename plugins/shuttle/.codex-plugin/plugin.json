@@ -1,0 +1,33 @@
+{
+  "name": "shuttle",
+  "version": "0.1.0+codex.20260902041737",
+  "description": "Collaborate through explicitly shared Codex tasks and local previews.",
+  "author": {
+    "name": "yeliex",
+    "url": "https://github.com/yeliex"
+  },
+  "repository": "https://github.com/yeliex/shuttle",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "collaboration",
+    "sharing"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Shuttle",
+    "shortDescription": "Collaborate through explicitly shared Codex tasks.",
+    "longDescription": "Shuttle lets collaborators read authorized Codex tasks live, send synchronous messages, and open approved local previews while everyone keeps their own workspace.",
+    "developerName": "yeliex",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "List the Codex tasks shared with me.",
+      "Share this Codex task with my collaborators."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

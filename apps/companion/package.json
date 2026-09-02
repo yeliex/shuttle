@@ -1,0 +1,35 @@
+{
+  "name": "@shuttle/companion",
+  "version": "0.0.0",
+  "description": "Shuttle local Node companion",
+  "private": true,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "bin": {
+    "shuttle-companion": "./dist/cli.mjs"
+  },
+  "scripts": {
+    "build": "pkgroll --clean-dist --minify",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "dev": "tsx watch src/cli.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --build --verbose --incremental"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2"
+  }
+}

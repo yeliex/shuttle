@@ -1,0 +1,13 @@
+{
+  "name": "shuttle",
+  "owner": {
+    "name": "yeliex"
+  },
+  "plugins": [
+    {
+      "name": "shuttle",
+      "source": "./plugins/shuttle",
+      "description": "Collaborate through explicitly shared Codex tasks and local previews."
+    }
+  ]
+}

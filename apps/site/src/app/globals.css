@@ -1,0 +1,47 @@
+@import "../../../../packages/ui/src/styles/globals.css";
+
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+@theme inline {
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+@layer components {
+  .docs-section {
+    @apply mt-16 scroll-mt-8 border-t pt-12;
+  }
+
+  .docs-section > h2 {
+    @apply text-3xl font-semibold tracking-tight text-foreground;
+  }
+
+  .docs-section > h3 {
+    @apply mt-9 text-xl font-semibold text-foreground;
+  }
+
+  .docs-section > p {
+    @apply mt-4 leading-7 text-muted-foreground;
+  }
+
+  .docs-section > ol,
+  .docs-section > ul {
+    @apply mt-5 space-y-3 pl-6 leading-7 text-muted-foreground;
+  }
+
+  .docs-section > ol {
+    @apply list-decimal;
+  }
+
+  .docs-section > ul {
+    @apply list-disc;
+  }
+
+  .docs-section > div {
+    @apply mt-6;
+  }
+
+  .docs-section code:not(pre code) {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.875em] text-foreground;
+  }
+}

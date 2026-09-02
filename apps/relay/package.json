@@ -1,0 +1,45 @@
+{
+  "name": "@shuttle/relay",
+  "version": "0.0.0",
+  "description": "Shuttle relay service",
+  "private": true,
+  "scripts": {
+    "generate": "prisma generate",
+    "postinstall": "prisma generate",
+    "dev": "wrangler dev",
+    "dev:node": "tsx watch src/server.ts",
+    "probe:docker": "SHUTTLE_PROBE_RUNTIME=docker-sqlite node scripts/docker-probe.mjs",
+    "probe:relay": "node scripts/docker-probe.mjs",
+    "test": "tsx --test tests/**/*.test.ts",
+    "build": "pnpm generate && pnpm build:node && tsc --build --verbose --incremental",
+    "build:node": "esbuild src/server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.mjs",
+    "typecheck": "pnpm generate && tsc --build --verbose --incremental",
+    "db:migrate:d1": "wrangler d1 migrations apply DB --local",
+    "db:migrate:d1:remote": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:node": "RUST_LOG=info prisma migrate deploy",
+    "deploy": "wrangler deploy"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@better-auth/prisma-adapter": "1.7.2",
+    "@hono/node-server": "^2.1.1",
+    "@prisma/adapter-better-sqlite3": "7.10.0",
+    "@prisma/adapter-d1": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "better-auth": "1.7.2",
+    "hono": "^4.13.5",
+    "nodemailer": "9.1.0",
+    "prisma": "7.10.0",
+    "worker-mailer": "1.2.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260831.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.127.1"
+  }
+}

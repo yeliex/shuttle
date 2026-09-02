@@ -1,0 +1,18 @@
+{
+  "extends": ["../../tsconfig.base.json", "@tsconfig/vite-react"],
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./node_modules/.tmp/tsconfig.ui",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.ui.tsbuildinfo",
+    "module": "ESNext",
+    "noEmit": false,
+    "types": ["react", "react-dom"],
+    "paths": {
+      "@/ui": ["./src/components"],
+      "@/ui/libs/*": ["./src/libs/*"],
+      "@/ui/hooks/*": ["./src/hooks/*"],
+      "@/ui/*": ["./src/components/*", "./src/*"]
+    }
+  },
+  "include": ["src"]
+}
