@@ -48,6 +48,33 @@ const run = (command, args, cwd = root, captureOutput = false) => new Promise((r
     });
 });
 
+const verifyAppLaunch = (executablePath) => new Promise((resolveLaunch, rejectLaunch) => {
+    let terminating = false;
+    const child = spawn(executablePath, [], {
+        cwd: dirname(executablePath),
+        env: process.env,
+        stdio: 'ignore',
+    });
+    const timer = setTimeout(() => {
+        terminating = true;
+        child.kill('SIGTERM');
+    }, 2_000);
+    child.once('error', (error) => {
+        clearTimeout(timer);
+        rejectLaunch(error);
+    });
+    child.once('exit', (code, signal) => {
+        clearTimeout(timer);
+        if (terminating && signal === 'SIGTERM') {
+            resolveLaunch();
+        } else {
+            rejectLaunch(new Error(
+                `Packaged app exited during launch with code ${String(code)} and signal ${String(signal)}`,
+            ));
+        }
+    });
+});
+
 await run('pnpm', ['build:plugin']);
 await run('swift', ['build', '-c', 'release'], clientRoot);
 const swiftBuildPath = (await run(
@@ -159,6 +186,7 @@ await run('codesign', [
     appPath,
 ]);
 await run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath]);
+await verifyAppLaunch(resolve(macOSPath, 'Shuttle'));
 
 const archivePath = resolve(outputRoot, `Shuttle-${version}.zip`);
 await run('ditto', [
