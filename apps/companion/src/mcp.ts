@@ -123,6 +123,21 @@ const getToolName = (params: unknown): string => {
     return name;
 };
 
+const getSourceThreadId = (params: unknown): string => {
+    if (!params || typeof params !== 'object' || Array.isArray(params)) {
+        throw new Error('Tool parameters must be an object');
+    }
+    const metadata = (params as { _meta?: unknown })._meta;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+        throw new Error('Codex did not provide task metadata');
+    }
+    const threadId = (metadata as { threadId?: unknown }).threadId;
+    if (typeof threadId !== 'string' || threadId.length === 0) {
+        throw new Error('Codex did not provide a task ID');
+    }
+    return threadId;
+};
+
 const callDaemonTool = async (
     daemon: JsonLinePeer,
     name: string,
@@ -157,92 +172,118 @@ const toolResult = (value: unknown): object => ({
 });
 
 export const serveMcp = async (): Promise<void> => {
-    const sourceThreadId = process.env.CODEX_THREAD_ID ?? process.env.CODEX_SESSION_ID;
-    if (!sourceThreadId) {
-        throw new Error('CODEX_THREAD_ID or CODEX_SESSION_ID is required');
-    }
+    let sourceThreadId: string | undefined;
+    let daemon: JsonLinePeer | undefined;
+    let codexSession: CodexAppToolsSession | undefined;
+    let daemonPromise: Promise<JsonLinePeer> | undefined;
 
-    const socketPath = getCompanionSocketPath();
-    let socket = connect(socketPath);
-    try {
-        await new Promise<void>((resolve, reject) => {
-            socket.once('connect', resolve);
-            socket.once('error', reject);
-        });
-    } catch (error) {
-        socket.destroy();
-        const errorCode = error && typeof error === 'object' && 'code' in error
-            ? String(error.code)
-            : undefined;
-        if (process.platform !== 'darwin'
-            || (errorCode !== 'ENOENT' && errorCode !== 'ECONNREFUSED')) {
-            throw error;
+    const getDaemon = (threadId: string): Promise<JsonLinePeer> => {
+        if (sourceThreadId && sourceThreadId !== threadId) {
+            return Promise.reject(new Error('A Shuttle MCP session can serve only one Codex task'));
         }
-
-        const launchExitCode = await new Promise<number | null>((resolve, reject) => {
-            const launcher = spawn('/usr/bin/open', ['-b', 'com.yeliex.shuttle'], {
-                stdio: 'ignore',
-            });
-            launcher.once('error', reject);
-            launcher.once('exit', resolve);
-        });
-        if (launchExitCode !== 0) {
-            throw new Error(
-                'Shuttle for macOS is required. Download it from https://shuttle.makesth.fun.',
-            );
+        sourceThreadId = threadId;
+        if (daemonPromise) {
+            return daemonPromise;
         }
-
-        const deadline = Date.now() + 10_000;
-        while (true) {
-            await new Promise((resolve) => setTimeout(resolve, 250));
-            socket = connect(socketPath);
+        const connection = (async () => {
+            const socketPath = getCompanionSocketPath();
+            let socket = connect(socketPath);
             try {
                 await new Promise<void>((resolve, reject) => {
                     socket.once('connect', resolve);
                     socket.once('error', reject);
                 });
-                break;
-            } catch {
+            } catch (error) {
                 socket.destroy();
-                if (Date.now() >= deadline) {
+                const errorCode = error && typeof error === 'object' && 'code' in error
+                    ? String(error.code)
+                    : undefined;
+                if (process.platform !== 'darwin'
+                    || (errorCode !== 'ENOENT' && errorCode !== 'ECONNREFUSED')) {
+                    throw error;
+                }
+
+                const launchExitCode = await new Promise<number | null>((resolve, reject) => {
+                    const launcher = spawn('/usr/bin/open', ['-b', 'com.yeliex.shuttle'], {
+                        stdio: 'ignore',
+                    });
+                    launcher.once('error', reject);
+                    launcher.once('exit', resolve);
+                });
+                if (launchExitCode !== 0) {
                     throw new Error(
-                        'Shuttle opened, but setup is incomplete. Finish setup in the Shuttle window, then open a new Codex task.',
+                        'Shuttle for macOS is required. Download it from https://shuttle.makesth.fun.',
                     );
                 }
+
+                const deadline = Date.now() + 10_000;
+                while (true) {
+                    await new Promise((resolve) => setTimeout(resolve, 250));
+                    socket = connect(socketPath);
+                    try {
+                        await new Promise<void>((resolve, reject) => {
+                            socket.once('connect', resolve);
+                            socket.once('error', reject);
+                        });
+                        break;
+                    } catch {
+                        socket.destroy();
+                        if (Date.now() >= deadline) {
+                            throw new Error(
+                                'Shuttle opened, but setup is incomplete. Finish setup in the Shuttle window, then try again.',
+                            );
+                        }
+                    }
+                }
             }
-        }
-    }
-    const daemon = new JsonLinePeer(socket, socket, 5 * 60_000);
-    const codexSession = new CodexAppToolsSession(await discoverCodexHost());
-    daemon.handle('host.readThread', () => (
-        readCompleteCodexThread(codexSession, sourceThreadId, sourceThreadId)
-    ));
-    daemon.handle('host.sendMessage', (params) => {
-        const prompt = params && typeof params === 'object' && !Array.isArray(params)
-            ? (params as { prompt?: unknown }).prompt
-            : undefined;
-        if (typeof prompt !== 'string' || prompt.length === 0) {
-            throw new Error('prompt must be a non-empty string');
-        }
-        return sendCodexMessage(codexSession, sourceThreadId, {
-            threadId: sourceThreadId,
-            prompt,
+            const nextDaemon = new JsonLinePeer(socket, socket, 5 * 60_000);
+            const nextCodexSession = new CodexAppToolsSession(await discoverCodexHost());
+            daemon = nextDaemon;
+            codexSession = nextCodexSession;
+            nextDaemon.handle('host.readThread', () => (
+                readCompleteCodexThread(nextCodexSession, threadId, threadId)
+            ));
+            nextDaemon.handle('host.sendMessage', (params) => {
+                const prompt = params && typeof params === 'object' && !Array.isArray(params)
+                    ? (params as { prompt?: unknown }).prompt
+                    : undefined;
+                if (typeof prompt !== 'string' || prompt.length === 0) {
+                    throw new Error('prompt must be a non-empty string');
+                }
+                return sendCodexMessage(nextCodexSession, threadId, {
+                    threadId,
+                    prompt,
+                });
+            });
+            await nextDaemon.request('host.register', { codexThreadId: threadId });
+            return nextDaemon;
+        })();
+        daemonPromise = connection;
+        void connection.catch(() => {
+            if (daemonPromise !== connection) {
+                return;
+            }
+            codexSession?.close();
+            daemon?.close();
+            codexSession = undefined;
+            daemon = undefined;
+            daemonPromise = undefined;
         });
-    });
-    await daemon.request('host.register', { codexThreadId: sourceThreadId });
+        return connection;
+    };
 
     const mcp = new JsonLinePeer(process.stdin, process.stdout);
     mcp.handle('initialize', () => ({
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: 'shuttle', version: '0.1.3' },
+        serverInfo: { name: 'shuttle', version: '0.1.4' },
     }));
     mcp.handle('notifications/initialized', () => undefined);
     mcp.handle('tools/list', () => ({ tools }));
     mcp.handle('tools/call', async (params) => {
         try {
             return toolResult(await callDaemonTool(
-                daemon,
+                await getDaemon(getSourceThreadId(params)),
                 getToolName(params),
                 getArguments(params),
             ));
@@ -258,6 +299,6 @@ export const serveMcp = async (): Promise<void> => {
     });
 
     await new Promise<void>((resolve) => mcp.onClose(resolve));
-    codexSession.close();
-    daemon.close();
+    codexSession?.close();
+    daemon?.close();
 };

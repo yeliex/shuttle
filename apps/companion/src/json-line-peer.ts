@@ -7,6 +7,7 @@ interface JsonRpcError {
 }
 
 interface JsonRpcMessage {
+    jsonrpc?: '2.0';
     id?: number;
     method?: string;
     params?: unknown;
@@ -138,7 +139,7 @@ export class JsonLinePeer {
         if (this.closed) {
             throw new Error('JSON line peer is closed');
         }
-        this.output.write(`${JSON.stringify(message)}\n`);
+        this.output.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`);
     }
 
     private handleClose(): void {
