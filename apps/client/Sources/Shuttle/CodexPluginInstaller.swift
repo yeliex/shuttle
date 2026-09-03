@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 
 private actor CodexPluginCommandRunner {
@@ -31,11 +30,13 @@ private actor CodexPluginCommandRunner {
 }
 
 private enum CodexPluginInstallerError: LocalizedError {
+    case cliUnavailable
     case commandFailed(String)
     case installationIncomplete
 
     var errorDescription: String? {
         switch self {
+        case .cliUnavailable: "Codex Desktop is required to install the Shuttle plugin."
         case let .commandFailed(message): message
         case .installationIncomplete: "Codex did not report the Shuttle plugin as installed and enabled."
         }
@@ -63,54 +64,32 @@ private struct CodexMarketplaceList: Decodable {
 @MainActor
 final class CodexPluginInstaller {
     private let commandRunner = CodexPluginCommandRunner()
-    private let guideURL = URL(string: "https://shuttle.makesth.fun/Agents.md")!
 
-    func checkOnLaunch() async {
-        guard let cliURL = CodexRuntimeLocator.locateCLI() else {
-            presentMissingCLI()
-            return
-        }
+    func isReady() async throws -> Bool {
+        try await isPluginReady(cliURL: try locateCLI())
+    }
 
-        do {
-            if try await isPluginReady(cliURL: cliURL) {
-                return
-            }
-        } catch {
-            presentCheckFailure(error)
-            return
-        }
-
-        let alert = NSAlert()
-        alert.messageText = "Install the Shuttle Codex plugin?"
-        alert.informativeText = "The plugin lets Codex read shared tasks and send messages through Shuttle. A new Codex task is required after installation."
-        alert.addButton(withTitle: "Install")
-        alert.addButton(withTitle: "Later")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        do {
-            let marketplaces = try await commandRunner.run(
-                executableURL: cliURL,
-                arguments: ["plugin", "marketplace", "list", "--json"]
-            )
-            if try !Self.hasShuttleMarketplace(in: marketplaces) {
-                _ = try await commandRunner.run(
-                    executableURL: cliURL,
-                    arguments: [
-                        "plugin", "marketplace", "add", "yeliex/shuttle",
-                        "--ref", "master", "--json",
-                    ]
-                )
-            }
+    func install() async throws {
+        let cliURL = try locateCLI()
+        let marketplaces = try await commandRunner.run(
+            executableURL: cliURL,
+            arguments: ["plugin", "marketplace", "list", "--json"]
+        )
+        if try !Self.hasShuttleMarketplace(in: marketplaces) {
             _ = try await commandRunner.run(
                 executableURL: cliURL,
-                arguments: ["plugin", "add", "shuttle@shuttle", "--json"]
+                arguments: [
+                    "plugin", "marketplace", "add", "yeliex/shuttle",
+                    "--ref", "master", "--json",
+                ]
             )
-            guard try await isPluginReady(cliURL: cliURL) else {
-                throw CodexPluginInstallerError.installationIncomplete
-            }
-            presentInstalled()
-        } catch {
-            presentInstallationFailure(error)
+        }
+        _ = try await commandRunner.run(
+            executableURL: cliURL,
+            arguments: ["plugin", "add", "shuttle@shuttle", "--json"]
+        )
+        guard try await isPluginReady(cliURL: cliURL) else {
+            throw CodexPluginInstallerError.installationIncomplete
         }
     }
 
@@ -134,41 +113,10 @@ final class CodexPluginInstaller {
         return try Self.isShuttleReady(in: data)
     }
 
-    private func presentMissingCLI() {
-        let alert = NSAlert()
-        alert.messageText = "Codex plugin setup is required"
-        alert.informativeText = "Shuttle could not find the Codex command-line tool. Open the setup guide to finish installation."
-        alert.addButton(withTitle: "Open Setup Guide")
-        alert.addButton(withTitle: "Later")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(guideURL)
+    private func locateCLI() throws -> URL {
+        guard let cliURL = CodexRuntimeLocator.locateCLI() else {
+            throw CodexPluginInstallerError.cliUnavailable
         }
-    }
-
-    private func presentCheckFailure(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Unable to check the Shuttle plugin"
-        alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    private func presentInstalled() {
-        let alert = NSAlert()
-        alert.messageText = "Shuttle plugin installed"
-        alert.informativeText = "Start a new Codex task to use Shuttle tools."
-        alert.addButton(withTitle: "Done")
-        alert.runModal()
-    }
-
-    private func presentInstallationFailure(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Unable to install the Shuttle plugin"
-        alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: "Open Setup Guide")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            NSWorkspace.shared.open(guideURL)
-        }
+        return cliURL
     }
 }

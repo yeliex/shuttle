@@ -27,11 +27,11 @@ Shuttle separates local Codex access from shared identity and authorization. Cod
 
 ### macOS app
 
-The native Swift menu bar app owns user-facing system integration: Relay sign-in, the authorization window, Companion lifecycle, Plugin setup, credentials in Keychain, deep links, and Sparkle updates.
+The native Swift menu bar app owns user-facing system integration: Relay sign-in, the authorization window, Companion lifecycle, Plugin setup, local device credentials, deep links, and Sparkle updates. On incomplete setup it presents one setup window with independent Plugin installation, Relay selection, and sign-in controls. The hosted Relay is selected by default, and the same window remains available from the menu bar for Plugin checks, Relay changes, and renewed sign-in.
 
 ### Companion
 
-The TypeScript Companion runs locally with the Node runtime available in Codex Desktop. It maintains the authenticated Relay connection, registers task capabilities supplied by the active Shuttle Plugin, calls the Codex host adapter, and proxies explicitly configured localhost services.
+The TypeScript Companion runs locally with the Node runtime available in Codex Desktop. While Relay credentials exist, the app keeps it running and restarts it after an unexpected exit. It maintains the authenticated Relay connection, registers task capabilities supplied by the active Shuttle Plugin, calls the Codex host adapter, and proxies explicitly configured localhost services.
 
 Codex-specific host details remain inside this adapter. Other packages use Shuttle's typed local protocol and do not depend on Codex bundle layout.
 
@@ -52,7 +52,7 @@ The Next.js site is statically generated. Its output and the Vite application ar
 
 ### Codex Plugin
 
-The packaged Plugin contains the Shuttle MCP runtime and collaboration Skill. It registers the current task with the local Companion and exposes exact tools for sharing, reading, messaging, and preview configuration.
+The packaged Plugin contains the Shuttle MCP runtime and collaboration Skill. It registers the current task with the local Companion and exposes exact tools for sharing, reading, messaging, and preview configuration. If the local Companion is unavailable on macOS, the MCP runtime launches the installed Shuttle app and retries the local connection before failing.
 
 ## Task sharing flow
 
@@ -106,7 +106,7 @@ The Relay applies authorization at every boundary:
 - `canPreview` on the task grant for local services;
 - short-lived signed preview cookie for browser transport.
 
-Device credentials are stored in macOS Keychain. Deployment secrets come from the runtime environment and are not part of shared protocols or logs.
+Device credentials are stored in `~/Library/Application Support/Shuttle/credentials.json` with owner-only file permissions. Deployment secrets come from the runtime environment and are not part of shared protocols or logs.
 
 ## Host compatibility boundary
 

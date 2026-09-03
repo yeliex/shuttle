@@ -1,53 +1,46 @@
 import Foundation
-import Security
 
-struct RelayCredentials: Codable, Equatable {
+struct RelayCredentials: Codable, Equatable, Sendable {
     let relayURL: URL
     let deviceToken: String
 }
 
 enum RelayCredentialStore {
-    private static let account = "device"
-    private static let service = "app.shuttle.credentials"
+    private static let defaultFileURL = FileManager.default.urls(
+        for: .applicationSupportDirectory,
+        in: .userDomainMask
+    )[0]
+        .appending(path: "Shuttle", directoryHint: .isDirectory)
+        .appending(path: "credentials.json")
 
-    static func load() -> RelayCredentials? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: account,
-            kSecAttrService as String: service,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecReturnData as String: true,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else {
-            return nil
-        }
+    static func load(from fileURL: URL = defaultFileURL) -> RelayCredentials? {
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return try? JSONDecoder().decode(RelayCredentials.self, from: data)
     }
 
-    static func save(_ credentials: RelayCredentials) throws {
+    static func save(
+        _ credentials: RelayCredentials,
+        to fileURL: URL = defaultFileURL
+    ) throws {
+        let directoryURL = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o700],
+            ofItemAtPath: directoryURL.path
+        )
         let data = try JSONEncoder().encode(credentials)
-        delete()
-        let item: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: account,
-            kSecAttrService as String: service,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
-            kSecValueData as String: data,
-        ]
-        let status = SecItemAdd(item as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
-        }
+        try data.write(to: fileURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: fileURL.path
+        )
     }
 
-    static func delete() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: account,
-            kSecAttrService as String: service,
-        ]
-        SecItemDelete(query as CFDictionary)
+    static func delete(at fileURL: URL = defaultFileURL) {
+        try? FileManager.default.removeItem(at: fileURL)
     }
 }

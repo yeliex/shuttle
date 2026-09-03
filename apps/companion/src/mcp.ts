@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 
 import {
@@ -161,11 +162,56 @@ export const serveMcp = async (): Promise<void> => {
         throw new Error('CODEX_THREAD_ID or CODEX_SESSION_ID is required');
     }
 
-    const socket = connect(getCompanionSocketPath());
-    await new Promise<void>((resolve, reject) => {
-        socket.once('connect', resolve);
-        socket.once('error', reject);
-    });
+    const socketPath = getCompanionSocketPath();
+    let socket = connect(socketPath);
+    try {
+        await new Promise<void>((resolve, reject) => {
+            socket.once('connect', resolve);
+            socket.once('error', reject);
+        });
+    } catch (error) {
+        socket.destroy();
+        const errorCode = error && typeof error === 'object' && 'code' in error
+            ? String(error.code)
+            : undefined;
+        if (process.platform !== 'darwin'
+            || (errorCode !== 'ENOENT' && errorCode !== 'ECONNREFUSED')) {
+            throw error;
+        }
+
+        const launchExitCode = await new Promise<number | null>((resolve, reject) => {
+            const launcher = spawn('/usr/bin/open', ['-b', 'com.yeliex.shuttle'], {
+                stdio: 'ignore',
+            });
+            launcher.once('error', reject);
+            launcher.once('exit', resolve);
+        });
+        if (launchExitCode !== 0) {
+            throw new Error(
+                'Shuttle for macOS is required. Download it from https://shuttle.makesth.fun.',
+            );
+        }
+
+        const deadline = Date.now() + 10_000;
+        while (true) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            socket = connect(socketPath);
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    socket.once('connect', resolve);
+                    socket.once('error', reject);
+                });
+                break;
+            } catch {
+                socket.destroy();
+                if (Date.now() >= deadline) {
+                    throw new Error(
+                        'Shuttle opened, but setup is incomplete. Finish setup in the Shuttle window, then open a new Codex task.',
+                    );
+                }
+            }
+        }
+    }
     const daemon = new JsonLinePeer(socket, socket, 5 * 60_000);
     const codexSession = new CodexAppToolsSession(await discoverCodexHost());
     daemon.handle('host.readThread', () => (

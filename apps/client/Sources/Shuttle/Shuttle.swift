@@ -4,16 +4,15 @@ import SwiftUI
 
 @MainActor
 final class ShuttleAppDelegate: NSObject, NSApplicationDelegate {
-    private let pluginInstaller = CodexPluginInstaller()
-
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Shuttle is intentionally a menu-bar utility; authorization uses a focused auxiliary window.
         NSApp.setActivationPolicy(.accessory)
         NSApp.applicationIconImage = ShuttleIcon.application
-        Task {
-            await pluginInstaller.checkOnLaunch()
-        }
     }
+}
+
+enum ShuttleWindow {
+    static let onboarding = "onboarding"
 }
 
 @main
@@ -21,7 +20,7 @@ final class ShuttleAppDelegate: NSObject, NSApplicationDelegate {
 struct ShuttleApp: App {
     @NSApplicationDelegateAdaptor(ShuttleAppDelegate.self) private var appDelegate
     @State private var companion: CompanionController
-    @State private var relayLogin = RelayLoginController()
+    @State private var onboarding: OnboardingController
     private let updater = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
@@ -30,65 +29,104 @@ struct ShuttleApp: App {
 
     init() {
         let companion = CompanionController()
+        let onboarding = OnboardingController(
+            companion: companion,
+            relayLogin: RelayLoginController()
+        )
         _companion = State(initialValue: companion)
-        companion.start()
+        _onboarding = State(initialValue: onboarding)
     }
 
     var body: some Scene {
         MenuBarExtra {
-            Text(companion.statusText)
-
-            if companion.isConnected {
-                if let relayURL = companion.relayURL {
-                    Button("Open Shuttle Dashboard") {
-                        NSWorkspace.shared.open(relayURL.appending(path: "app"))
-                    }
-                }
-
-                if companion.isRunning {
-                    Button("Stop Companion") {
-                        companion.stop()
-                    }
-                } else {
-                    Button("Start Companion") {
-                        companion.start()
-                    }
-                    .disabled(!companion.canStart)
-                }
-
-                Button("Disconnect Relay…", role: .destructive) {
-                    companion.disconnectRelay()
-                }
-            } else {
-                Button("Connect Relay…") {
-                    relayLogin.connect(currentRelayURL: companion.relayURL) { credentials in
-                        do {
-                            try companion.configure(credentials)
-                        } catch {
-                            let alert = NSAlert(error: error)
-                            alert.runModal()
-                        }
-                    }
-                }
-                .disabled(relayLogin.isConnecting)
-            }
-
-            if let errorMessage = relayLogin.errorMessage {
-                Text(errorMessage)
-            }
-
-            Divider()
-
-            Button("Check for Updates…") {
-                updater.checkForUpdates(nil)
-            }
-
-            Button("Quit Shuttle") {
-                companion.stopImmediately()
-                NSApplication.shared.terminate(nil)
-            }
+            ShuttleMenu(
+                companion: companion,
+                onboarding: onboarding,
+                checkForUpdates: { updater.checkForUpdates(nil) }
+            )
         } label: {
-            Image(nsImage: ShuttleIcon.menuBar)
+            ShuttleMenuBarLabel(
+                companion: companion,
+                onboarding: onboarding
+            )
+        }
+
+        Window("Set up Shuttle", id: ShuttleWindow.onboarding) {
+            OnboardingView(controller: onboarding)
+        }
+        .windowStyle(.plain)
+        .windowLevel(.floating)
+        .windowResizability(.contentSize)
+        .defaultWindowPlacement { content, _ in
+            WindowPlacement(size: content.sizeThatFits(.unspecified))
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+    }
+}
+
+private struct ShuttleMenuBarLabel: View {
+    @Environment(\.openWindow) private var openWindow
+
+    let companion: CompanionController
+    let onboarding: OnboardingController
+
+    var body: some View {
+        Image(nsImage: ShuttleIcon.menuBar)
+            .task {
+                if !NSRunningApplication.current.isFinishedLaunching {
+                    for await _ in NotificationCenter.default.notifications(
+                        named: NSApplication.didFinishLaunchingNotification
+                    ) {
+                        break
+                    }
+                }
+                companion.loadStoredCredentials()
+                if await onboarding.checkOnLaunch() {
+                    openWindow(id: ShuttleWindow.onboarding)
+                }
+            }
+    }
+}
+
+private struct ShuttleMenu: View {
+    @Environment(\.openWindow) private var openWindow
+
+    let companion: CompanionController
+    let onboarding: OnboardingController
+    let checkForUpdates: () -> Void
+
+    var body: some View {
+        Text(companion.statusText)
+
+        Button("Set Up Shuttle…") {
+            onboarding.prepareForPresentation()
+            openWindow(id: ShuttleWindow.onboarding)
+            Task {
+                await onboarding.refreshPluginStatus()
+            }
+        }
+
+        if companion.isConnected {
+            if let relayURL = companion.relayURL {
+                Button("Open Shuttle Dashboard") {
+                    NSWorkspace.shared.open(relayURL.appending(path: "app"))
+                }
+            }
+
+            Button("Disconnect Relay…", role: .destructive) {
+                companion.disconnectRelay()
+                onboarding.relayDidDisconnect()
+            }
+        }
+
+        Divider()
+
+        Button("Check for Updates…", action: checkForUpdates)
+
+        Button("Quit Shuttle") {
+            companion.stopImmediately()
+            NSApplication.shared.terminate(nil)
         }
     }
 }

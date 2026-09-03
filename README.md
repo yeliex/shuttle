@@ -40,16 +40,19 @@ Read [the product guide](docs/product.md) for the sharing model and [the archite
 ## Get started
 
 1. Download the latest ZIP from [GitHub Releases](https://github.com/yeliex/shuttle/releases/latest), move `Shuttle.app` to Applications, and open it.
-2. Connect the menu bar app to the hosted Relay or your own Relay.
-3. Let Shuttle install the Codex Plugin, or install it manually:
+2. In the setup window, install the Codex Plugin and sign in to the default hosted Relay. These actions are independent; choose **Relay** only when using a self-hosted deployment.
+3. After installing the Plugin, open a new Codex task so it is loaded. You can reopen **Set Up Shuttle…** from the menu bar at any time to check the Plugin, change Relay, or sign in again.
 
-   ```bash
-   codex plugin marketplace add yeliex/shuttle --ref master
-   codex plugin add shuttle@shuttle
-   ```
+If automatic Plugin setup cannot find the Codex CLI, install it manually:
 
-4. Open a new Codex task so the Plugin is loaded.
-5. Ask Codex to share the current task through Shuttle, then choose the collaborator, permission, expiration, and optional local previews in the native authorization window.
+```bash
+codex plugin marketplace add yeliex/shuttle --ref master
+codex plugin add shuttle@shuttle
+```
+
+Once installed, the Plugin opens the Shuttle app automatically when its local Companion is not running.
+
+Ask Codex to share the current task through Shuttle, then choose the collaborator, permission, expiration, and optional local previews in the native authorization window.
 
 Collaborators receive a prompt containing a precise resource link such as `shuttle://shared/<id>`. The Shuttle Skill uses that link to read the task or send a message without searching for unrelated tasks.
 

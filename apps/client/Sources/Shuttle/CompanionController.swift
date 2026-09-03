@@ -32,7 +32,6 @@ final class CompanionController {
         case unavailable(String)
         case stopped
         case running(Int32)
-        case stopping
         case failed(String)
     }
 
@@ -46,11 +45,12 @@ final class CompanionController {
     private var outputBuffer = Data()
     private var outputHandle: FileHandle?
     private var process: Process?
+    private var restartTask: Task<Void, Never>?
 
     init(
         nodeURL: URL? = CodexRuntimeLocator.locateNode(),
         scriptURL: URL? = CompanionScriptLocator.locate(),
-        credentials: RelayCredentials? = RelayCredentialStore.load()
+        credentials: RelayCredentials? = nil
     ) {
         self.nodeURL = nodeURL
         self.scriptURL = scriptURL
@@ -68,16 +68,8 @@ final class CompanionController {
     }
 
     var isRunning: Bool {
-        switch status {
-        case .running, .stopping:
-            true
-        default:
-            false
-        }
-    }
-
-    var canStart: Bool {
-        nodeURL != nil && scriptURL != nil && credentials != nil && !isRunning
+        if case .running = status { return true }
+        return false
     }
 
     var relayURL: URL? {
@@ -96,12 +88,27 @@ final class CompanionController {
             "Companion stopped"
         case let .running(processIdentifier):
             "Companion running (PID \(processIdentifier))"
-        case .stopping:
-            "Companion stopping…"
+        }
+    }
+
+    func loadStoredCredentials() {
+        guard credentials == nil else { return }
+        guard let storedCredentials = RelayCredentialStore.load() else { return }
+
+        credentials = storedCredentials
+        if nodeURL == nil {
+            status = .unavailable("Codex Node runtime not found")
+        } else if scriptURL == nil {
+            status = .unavailable("Companion script not found")
+        } else {
+            status = .stopped
+            start()
         }
     }
 
     func start() {
+        restartTask?.cancel()
+        restartTask = nil
         guard process == nil,
               let nodeURL,
               let scriptURL,
@@ -147,20 +154,9 @@ final class CompanionController {
         }
     }
 
-    func stop() {
-        guard inputHandle != nil else {
-            return
-        }
-
-        status = .stopping
-        do {
-            try writeControl(["id": "client-stop", "method": "shutdown"])
-        } catch {
-            process?.terminate()
-        }
-    }
-
     func stopImmediately() {
+        restartTask?.cancel()
+        restartTask = nil
         process?.terminate()
         process = nil
         inputHandle = nil
@@ -174,6 +170,7 @@ final class CompanionController {
 
     func configure(_ credentials: RelayCredentials) throws {
         try RelayCredentialStore.save(credentials)
+        stopImmediately()
         self.credentials = credentials
         status = .stopped
         start()
@@ -196,7 +193,18 @@ final class CompanionController {
         outputHandle?.readabilityHandler = nil
         outputHandle = nil
         outputBuffer.removeAll(keepingCapacity: true)
-        status = exitCode == 0 ? .stopped : .failed("Companion exited with code \(exitCode)")
+        guard nodeURL != nil, scriptURL != nil, credentials != nil else {
+            status = .stopped
+            return
+        }
+
+        status = .failed("Companion exited with code \(exitCode); restarting…")
+        restartTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            self?.restartTask = nil
+            self?.start()
+        }
     }
 
     private func consumeOutput(_ data: Data) {
@@ -237,11 +245,5 @@ final class CompanionController {
                 error: error.localizedDescription
             )
         }
-    }
-
-    private func writeControl(_ object: [String: String]) throws {
-        var data = try JSONSerialization.data(withJSONObject: object)
-        data.append(0x0A)
-        try inputHandle?.write(contentsOf: data)
     }
 }

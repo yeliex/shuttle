@@ -32,25 +32,27 @@ export default function Documentation() {
               <li>Download the latest ZIP from <a href="https://github.com/yeliex/shuttle/releases/latest">GitHub Releases</a>.</li>
               <li>Move <code>Shuttle.app</code> to Applications and open it.</li>
               <li>If macOS blocks the first launch, open System Settings → Privacy &amp; Security and choose <strong>Open Anyway</strong> only for a build downloaded from this repository.</li>
+              <li>In the setup window, install the Codex Plugin and sign in to the default hosted Relay. These actions are independent.</li>
+              <li>After installing the Plugin, open a new Codex task. Reopen <strong>Set Up Shuttle…</strong> from the menu bar whenever you need to check the Plugin, change Relay, or sign in again.</li>
             </ol>
             <p>Shuttle is currently distributed without Apple notarization. In-app updates are verified with Sparkle Ed25519 signatures, checked automatically, and shown with release notes before installation.</p>
 
-            <h3>Install the Codex Plugin</h3>
-            <p>Shuttle checks for the Plugin when the app starts and offers to install it when needed. To install it manually:</p>
+            <h3>Automatic Plugin setup</h3>
+            <p>Shuttle uses the CLI bundled with Codex Desktop when available, then falls back to the CLI in your PATH. If automatic setup cannot complete, install the Plugin manually:</p>
             <CodeBlock title="Terminal">{"codex plugin marketplace add yeliex/shuttle --ref master\ncodex plugin add shuttle@shuttle"}</CodeBlock>
-            <p>Open a new Codex task after installation or an update. Existing tasks do not load newly installed plugins.</p>
+            <p>Open a new Codex task after installation or an update. Existing tasks do not load newly installed plugins. If the Plugin starts while Shuttle is closed, it opens the installed app automatically.</p>
             <p>LLMs can read the same minimal setup instructions at <a href="/Agents.md"><code>https://shuttle.makesth.fun/Agents.md</code></a>.</p>
           </section>
 
           <section id="connect" className="docs-section">
             <h2>Connect a Mac</h2>
             <ol>
-              <li>Open the Shuttle menu bar menu and choose <strong>Connect Relay</strong>.</li>
-              <li>Use the prefilled hosted Relay, <code>https://shuttle.makesth.fun</code>, or enter your self-hosted HTTPS origin.</li>
+              <li>Open Shuttle. The setup window appears whenever Plugin installation or Relay sign-in is incomplete.</li>
+              <li>Sign in directly to use <code>https://shuttle.makesth.fun</code>, or choose <strong>Relay</strong> first for a self-hosted HTTPS origin.</li>
               <li>Sign in in the system browser and approve <strong>Connect this Mac</strong>.</li>
               <li>Return to Shuttle through the secure <code>shuttle://device-connected</code> callback.</li>
             </ol>
-            <p>The app stores the device credential in macOS Keychain. You can inspect or revoke connected devices from the Web app.</p>
+            <p>The app stores the device credential in <code>~/Library/Application Support/Shuttle</code> with owner-only permissions. You can inspect or revoke connected devices from the Web app.</p>
 
             <h3>Sign in</h3>
             <p>Email sign-in starts with an address. Depending on the account, Shuttle then asks for a password or sends a one-time link. A Relay may also enable GitHub OAuth, close registration, or restrict sign-in to selected email domains.</p>

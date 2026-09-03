@@ -7,9 +7,11 @@ Shuttle lets you collaborate from your own Codex task. It can read, message, or 
 Download the latest macOS release:
 https://github.com/yeliex/shuttle/releases/latest
 
-Move Shuttle to Applications, open it, and connect it to the Relay used by your collaborator. The app defaults to the hosted Relay at https://shuttle.makesth.fun and also accepts a self-hosted Relay URL.
+Move Shuttle to Applications and open it. In the setup window, install the Codex plugin and sign in to the hosted Relay at https://shuttle.makesth.fun. These actions are independent. Choose **Relay** only when using a self-hosted deployment.
 
-## 2. Install the Shuttle Codex plugin
+After installing or updating the plugin, start a new Codex task. Reopen **Set Up Shuttle…** from the menu bar whenever you need to check the plugin, change Relay, or sign in again.
+
+## 2. If automatic plugin setup fails
 
 Check whether it is already installed:
 
@@ -22,7 +24,7 @@ If Shuttle is missing or disabled, install it from the official Shuttle reposito
 
 Run \`codex plugin list --json\` again to verify that \`shuttle@shuttle\` is installed and enabled.
 
-After installing or updating the plugin, start a new Codex task. Existing tasks do not load newly installed plugins.
+After installing or updating the plugin, start a new Codex task. Existing tasks do not load newly installed plugins. When the plugin starts and Shuttle is not running, it attempts to open the installed app automatically.
 
 ## 3. Use an exact Shuttle link
 

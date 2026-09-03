@@ -15,13 +15,24 @@ func resolvesNodeInsideCodexBundle() {
 }
 
 @Test
+func resolvesCLIInsideCodexBundle() {
+    let applicationURL = URL(fileURLWithPath: "/Applications/Codex.app")
+
+    #expect(
+        CodexRuntimeLocator.cliURL(in: applicationURL).path
+            == "/Applications/Codex.app/Contents/Resources/codex"
+    )
+}
+
+@Test
 func buildsCodexCLICandidatesFromEnvironmentWithoutDuplicates() {
     let candidates = CodexRuntimeLocator.cliCandidateURLs(environment: [
         "PATH": "/opt/homebrew/bin:/usr/local/bin",
         "SHUTTLE_CODEX_PATH": "/custom/codex",
-    ])
+    ], applicationURL: URL(fileURLWithPath: "/Applications/Codex.app"))
 
     #expect(candidates.first?.path == "/custom/codex")
+    #expect(candidates[1].path == "/Applications/Codex.app/Contents/Resources/codex")
     #expect(candidates.filter { $0.path == "/opt/homebrew/bin/codex" }.count == 1)
 }
 
@@ -42,6 +53,38 @@ func resolvesBundledCompanionScript() {
         CompanionScriptLocator.bundledURL(in: resourceURL).path
             == "/Applications/Shuttle.app/Contents/Resources/companion/cli.mjs"
     )
+}
+
+@Test
+func persistsRelayCredentialsWithOwnerOnlyPermissions() throws {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+        .appending(path: "shuttle-credentials-\(UUID().uuidString)")
+    let fileURL = temporaryDirectory
+        .appending(path: "config", directoryHint: .isDirectory)
+        .appending(path: "credentials.json")
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    let relayURL = try #require(URL(string: "https://shuttle.example"))
+    let credentials = RelayCredentials(
+        relayURL: relayURL,
+        deviceToken: "test-device-token"
+    )
+
+    try RelayCredentialStore.save(credentials, to: fileURL)
+
+    #expect(RelayCredentialStore.load(from: fileURL) == credentials)
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
+    #expect(permissions.intValue & 0o777 == 0o600)
+    let directoryAttributes = try FileManager.default.attributesOfItem(
+        atPath: fileURL.deletingLastPathComponent().path
+    )
+    let directoryPermissions = try #require(
+        directoryAttributes[.posixPermissions] as? NSNumber
+    )
+    #expect(directoryPermissions.intValue & 0o777 == 0o700)
+
+    RelayCredentialStore.delete(at: fileURL)
+    #expect(!FileManager.default.fileExists(atPath: fileURL.path))
 }
 
 @Test
@@ -89,6 +132,25 @@ func rendersShareAuthorizationView() throws {
 }
 
 @Test @MainActor
+func rendersOnboardingView() throws {
+    let companion = CompanionController(
+        nodeURL: nil,
+        scriptURL: nil,
+        credentials: nil
+    )
+    let controller = OnboardingController(
+        companion: companion,
+        relayLogin: RelayLoginController()
+    )
+    let renderer = ImageRenderer(content: OnboardingView(controller: controller))
+    renderer.scale = 2
+    let image = try #require(renderer.nsImage)
+
+    #expect(image.size.width == 560)
+    #expect(image.size.height >= 300)
+}
+
+@Test @MainActor
 func startsAndStopsCompanionProcess() async throws {
     let temporaryDirectory = FileManager.default.temporaryDirectory
         .appending(path: "shuttle-client-\(UUID().uuidString)")
@@ -112,10 +174,57 @@ func startsAndStopsCompanionProcess() async throws {
     companion.start()
     #expect(companion.isRunning)
 
-    companion.stop()
-    for _ in 0..<50 where companion.status != .stopped {
+    companion.stopImmediately()
+    #expect(companion.status == .stopped)
+}
+
+@Test @MainActor
+func restartsCompanionAfterUnexpectedExit() async throws {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+        .appending(path: "shuttle-client-restart-\(UUID().uuidString)")
+    let scriptURL = temporaryDirectory.appending(path: "companion.sh")
+    let markerURL = temporaryDirectory.appending(path: "started-once")
+    try FileManager.default.createDirectory(
+        at: temporaryDirectory,
+        withIntermediateDirectories: true
+    )
+    defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+    try """
+    #!/bin/sh
+    marker="\(markerURL.path)"
+    if [ ! -f "$marker" ]; then
+      touch "$marker"
+      exit 1
+    fi
+    read request
+    """.write(to: scriptURL, atomically: true, encoding: .utf8)
+    let relayURL = try #require(URL(string: "http://localhost:8787"))
+
+    let companion = CompanionController(
+        nodeURL: URL(fileURLWithPath: "/bin/sh"),
+        scriptURL: scriptURL,
+        credentials: RelayCredentials(
+            relayURL: relayURL,
+            deviceToken: "test-device-token"
+        )
+    )
+    companion.start()
+    let initialPID = try #require(runningPID(companion.status))
+    defer { companion.stopImmediately() }
+
+    var restartedPID: Int32?
+    for _ in 0..<250 {
+        if let currentPID = runningPID(companion.status), currentPID != initialPID {
+            restartedPID = currentPID
+            break
+        }
         try await Task.sleep(for: .milliseconds(10))
     }
 
-    #expect(companion.status == .stopped)
+    #expect(restartedPID != nil)
+}
+
+private func runningPID(_ status: CompanionController.Status) -> Int32? {
+    guard case let .running(processIdentifier) = status else { return nil }
+    return processIdentifier
 }
