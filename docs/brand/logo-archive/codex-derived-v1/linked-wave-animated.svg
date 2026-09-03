@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="240 280 230 160" role="img" aria-labelledby="title desc">
+  <title id="title">Animated Shuttle linked wave mark</title>
+  <desc id="desc">A signal travels across a wave between two endpoints beside a Codex-style prompt arrow.</desc>
+  <style>
+    .signal {
+      animation: signal 2.5s cubic-bezier(.65, 0, .35, 1) infinite;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+    }
+    .source { animation: source 2.5s ease-out infinite; transform-origin: 361px 409px; }
+    .target { animation: target 2.5s ease-out infinite; transform-origin: 451px 409px; }
+    @keyframes signal {
+      0%, 12% { opacity: 0; stroke-dashoffset: 1; }
+      20% { opacity: 1; }
+      62%, 78% { opacity: 1; stroke-dashoffset: 0; }
+      100% { opacity: 0; stroke-dashoffset: 0; }
+    }
+    @keyframes source { 0%, 18%, 100% { transform: scale(1); } 28% { transform: scale(1.42); } 42% { transform: scale(1); } }
+    @keyframes target { 0%, 60%, 100% { transform: scale(1); } 72% { transform: scale(1.42); } 86% { transform: scale(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      .signal, .source, .target { animation: none; }
+      .signal { display: none; }
+    }
+  </style>
+  <path d="M277 309 303.4 357.7c1.2 2.1 1.1 4-.1 6.1L277 410" fill="none" stroke="#18181b" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" />
+  <path d="M376 409c15-11 45 11 60 0" fill="none" stroke="#a1a1aa" stroke-linecap="round" stroke-width="16" />
+  <path class="signal" d="M376 409c15-11 45 11 60 0" fill="none" pathLength="1" stroke="#5b7cff" stroke-linecap="round" stroke-width="16" />
+  <circle class="source" cx="361" cy="409" r="11" fill="#fff" stroke="#18181b" stroke-width="8.5" />
+  <circle class="target" cx="451" cy="409" r="11" fill="#fff" stroke="#18181b" stroke-width="8.5" />
+</svg>

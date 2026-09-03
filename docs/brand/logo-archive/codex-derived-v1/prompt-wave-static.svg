@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="240 280 230 160" role="img" aria-labelledby="title desc">
+  <title id="title">Shuttle prompt and wave mark</title>
+  <desc id="desc">A Codex-style prompt arrow followed by a wave without endpoints.</desc>
+  <path d="M277 309 303.4 357.7c1.2 2.1 1.1 4-.1 6.1L277 410" fill="none" stroke="#18181b" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" />
+  <path d="M376 409c15-11 45 11 60 0" fill="none" stroke="#18181b" stroke-linecap="round" stroke-width="16" />
+</svg>

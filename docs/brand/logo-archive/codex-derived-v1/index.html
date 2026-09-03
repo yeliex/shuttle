@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shuttle logo exploration</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f4f4f5;
+        color: #18181b;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; }
+      main { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 64px 0 80px; }
+      header { display: grid; gap: 10px; margin-bottom: 36px; }
+      h1 { margin: 0; font-size: clamp(32px, 5vw, 54px); letter-spacing: -.05em; }
+      header p { max-width: 720px; margin: 0; color: #71717a; font-size: 16px; line-height: 1.6; }
+      .comparison { display: grid; gap: 18px; margin-top: 36px; }
+      .comparison + .comparison { margin-top: 52px; }
+      .section-heading { display: grid; gap: 5px; }
+      .section-heading h2 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+      .section-heading p { margin: 0; color: #71717a; font-size: 14px; line-height: 1.5; }
+      .grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+      .theme-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .direction { display: grid; gap: 10px; }
+      .card {
+        position: relative;
+        display: grid;
+        min-height: 224px;
+        place-items: center;
+        overflow: hidden;
+        border: 1px solid #e4e4e7;
+        border-radius: 22px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 3%);
+      }
+      .card::after {
+        position: absolute;
+        inset: auto 18px 16px;
+        color: #a1a1aa;
+        font-size: 11px;
+        letter-spacing: .08em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+      .static::after { content: "Static SVG"; }
+      .animated { cursor: pointer; }
+      .animated::after { content: "Animated SVG · click to activate"; }
+      .transition::after { content: "Transition loop · click to activate"; }
+      .card img { display: block; width: 164px; height: 164px; }
+      .animated.is-activating img { animation: codex-activate .55s cubic-bezier(.34, 1.56, .64, 1); }
+      .meta { padding: 4px 6px 8px; }
+      .meta h3 { margin: 0 0 5px; font-size: 17px; letter-spacing: -.02em; }
+      .meta p { margin: 0; color: #71717a; font-size: 13px; line-height: 1.5; }
+      @keyframes codex-activate {
+        0% { transform: rotate(0) scale(1); }
+        56% { transform: rotate(-360deg) scale(1.18); }
+        100% { transform: rotate(-360deg) scale(1); }
+      }
+      @media (max-width: 880px) {
+        main { width: min(100% - 24px, 1180px); padding-top: 36px; }
+        header { margin-bottom: 28px; }
+        .comparison { gap: 12px; margin-top: 28px; }
+        .comparison + .comparison { margin-top: 38px; }
+        .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .direction { gap: 7px; }
+        .card { min-height: 158px; border-radius: 16px; }
+        .card::after { inset: auto 6px 9px; font-size: 8px; letter-spacing: .04em; }
+        .card img { width: 112px; height: 112px; }
+        .meta { padding: 2px 3px 4px; }
+        .meta h3 { margin: 0; font-size: 13px; }
+        .meta p { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) { .animated.is-activating img { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Shuttle mark study</h1>
+        <p>只保留长度为 60 的波浪方向。五组版本覆盖无端点静态与流转、组合静态与流转，以及完整状态转换。</p>
+      </header>
+      <section class="comparison" aria-labelledby="inner-symbol-heading">
+        <div class="section-heading">
+          <h2 id="inner-symbol-heading">内部符号</h2>
+          <p>五种状态使用同一箭头、波浪长度、基线与线宽。</p>
+        </div>
+        <div class="grid">
+          <article class="direction">
+            <div class="card static"><img src="prompt-wave-static.svg" alt="Shuttle 箭头与无端点波浪内部符号" /></div>
+            <div class="meta"><h3>01 无端点代码态</h3><p>动画首帧：箭头与长度 60 的波浪，没有圆点。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated" type="button"><img src="prompt-wave-animated.svg" alt="Shuttle 箭头与无端点波浪蓝色流转内部符号" /></button>
+            <div class="meta"><h3>02 无端点流转态</h3><p>箭头保持可见，蓝色信号流过没有圆环的波浪。</p></div>
+          </article>
+          <article class="direction">
+            <div class="card static"><img src="linked-wave-static.svg" alt="长度 60 的 Shuttle 组合内部符号静态版" /></div>
+            <div class="meta"><h3>03 组合静态态</h3><p>保留箭头与长度 60 的空心端点波浪。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated" type="button"><img src="linked-wave-animated.svg" alt="长度 60 的 Shuttle 内部符号信号动效版" /></button>
+            <div class="meta"><h3>04 信号流转态</h3><p>箭头与双端点保持可见，蓝色信号持续流转。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated transition" type="button"><img src="linked-wave-transition-animated.svg" alt="Shuttle 内部符号箭头与连接状态转换动效版" /></button>
+            <div class="meta"><h3>05 状态转换态</h3><p>按 10% / 15% / 50% / 15% / 10% 的节奏循环。</p></div>
+          </article>
+        </div>
+      </section>
+      <section class="comparison" aria-labelledby="full-icon-heading">
+        <div class="section-heading">
+          <h2 id="full-icon-heading">完整图标</h2>
+          <p>将相同五种状态放入重绘外框检查应用图标比例。</p>
+        </div>
+        <div class="grid">
+          <article class="direction">
+            <div class="card static"><img src="icon-prompt-wave-static.svg" alt="Shuttle 箭头与无端点波浪完整图标" /></div>
+            <div class="meta"><h3>01 无端点代码态</h3><p>动画首帧放入重绘外框。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated" type="button"><img src="icon-prompt-wave-animated.svg" alt="Shuttle 箭头与无端点波浪蓝色流转完整图标" /></button>
+            <div class="meta"><h3>02 无端点流转态</h3><p>外框和箭头保持静止，无圆环波浪显示蓝色流转。</p></div>
+          </article>
+          <article class="direction">
+            <div class="card static"><img src="icon-static.svg" alt="长度 60 的 Shuttle 组合完整图标静态版" /></div>
+            <div class="meta"><h3>03 组合静态态</h3><p>箭头与双端点波浪放入重绘外框。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated" type="button"><img src="icon-animated.svg" alt="长度 60 的 Shuttle 完整图标信号动效版" /></button>
+            <div class="meta"><h3>04 信号流转态</h3><p>外框保持静止，只让内部连接信号流转。</p></div>
+          </article>
+          <article class="direction">
+            <button class="card animated transition" type="button"><img src="icon-transition-animated.svg" alt="Shuttle 完整图标箭头与连接状态转换动效版" /></button>
+            <div class="meta"><h3>05 状态转换态</h3><p>外框保持静止，内部按新节奏完成状态切换。</p></div>
+          </article>
+        </div>
+      </section>
+      <section class="comparison" aria-labelledby="themed-icon-heading">
+        <div class="section-heading">
+          <h2 id="themed-icon-heading">Light / Dark 应用图标</h2>
+          <p>参考 Codex 图标的主题关系：蓝紫主体与白色符号保持一致，仅切换浅色或深色圆角底。</p>
+        </div>
+        <div class="grid theme-grid">
+          <article class="direction">
+            <div class="card static"><img src="icon-prompt-wave-light.svg" alt="无端点代码态 Light Mode 应用图标" /></div>
+            <div class="meta"><h3>无端点代码态 · Light</h3><p>白色圆角底、蓝紫主体和白色内部符号。</p></div>
+          </article>
+          <article class="direction">
+            <div class="card static"><img src="icon-prompt-wave-dark.svg" alt="无端点代码态 Dark Mode 应用图标" /></div>
+            <div class="meta"><h3>无端点代码态 · Dark</h3><p>深灰圆角底，主体与内部符号保持一致。</p></div>
+          </article>
+          <article class="direction">
+            <div class="card static"><img src="icon-combined-light.svg" alt="组合静态态 Light Mode 应用图标" /></div>
+            <div class="meta"><h3>组合静态态 · Light</h3><p>在浅色底上保留空心端点连接。</p></div>
+          </article>
+          <article class="direction">
+            <div class="card static"><img src="icon-combined-dark.svg" alt="组合静态态 Dark Mode 应用图标" /></div>
+            <div class="meta"><h3>组合静态态 · Dark</h3><p>在深色底上保留空心端点连接。</p></div>
+          </article>
+        </div>
+      </section>
+    </main>
+    <script>
+      for (const card of document.querySelectorAll(".animated")) {
+        card.addEventListener("click", () => {
+          card.classList.remove("is-activating");
+          requestAnimationFrame(() => card.classList.add("is-activating"));
+        });
+        card.addEventListener("animationend", () => card.classList.remove("is-activating"));
+      }
+    </script>
+  </body>
+</html>
