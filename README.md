@@ -4,6 +4,8 @@ Shuttle lets people collaborate across Codex tasks while everyone keeps working 
 
 [Download for macOS](https://github.com/yeliex/shuttle/releases/latest) · [Documentation](https://shuttle.makesth.fun/docs/) · [Open Shuttle](https://shuttle.makesth.fun/app/)
 
+Requires an Apple Silicon Mac running macOS 15 or later.
+
 > [!IMPORTANT]
 > Shuttle is an early release for macOS. Its Codex Desktop integration is version-sensitive, so keep Shuttle and Codex Desktop up to date and review the privacy boundaries before using it with sensitive work.
 
@@ -53,6 +55,8 @@ codex plugin add shuttle@shuttle
 Once installed, the Plugin opens the Shuttle app automatically when its local Companion is not running.
 
 Ask Codex to share the current task through Shuttle, then choose the collaborator, permission, expiration, and optional local previews in the native authorization window.
+
+You can also invoke the Shuttle Skill directly with `/shuttle share`.
 
 Collaborators receive a prompt containing a precise resource link such as `shuttle://shared/<id>`. The Shuttle Skill uses that link to read the task or send a message without searching for unrelated tasks.
 

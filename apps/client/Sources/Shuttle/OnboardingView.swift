@@ -45,7 +45,7 @@ struct OnboardingView: View {
                         title: "Install the Codex plugin",
                         detail: pluginDetail,
                         state: pluginState,
-                        showsAction: !controller.pluginReady,
+                        showsAction: true,
                         isActionEnabled: !controller.isCheckingPlugin
                             && !controller.isInstallingPlugin,
                         action: controller.installPlugin
@@ -147,11 +147,11 @@ struct OnboardingView: View {
     }
 
     private var pluginState: OnboardingSettingState {
-        if controller.pluginReady { return .complete }
         if controller.isCheckingPlugin || controller.isInstallingPlugin {
             return .active
         }
         if controller.pluginErrorMessage != nil { return .failed }
+        if controller.pluginReady { return .complete }
         return .pending
     }
 
@@ -163,11 +163,13 @@ struct OnboardingView: View {
     }
 
     private var pluginDetail: String {
-        if controller.pluginReady { return "Installed and enabled in Codex." }
         if controller.isCheckingPlugin { return "Checking Codex Desktop…" }
         if controller.isInstallingPlugin {
-            return "Installing Shuttle tools and collaboration guidance…"
+            return controller.pluginReady
+                ? "Updating Shuttle tools and collaboration guidance…"
+                : "Installing Shuttle tools and collaboration guidance…"
         }
+        if controller.pluginReady { return "Installed. Click to check for updates." }
         return "Adds Shuttle tools and collaboration guidance to Codex."
     }
 

@@ -21,7 +21,7 @@ export default function Privacy() {
           </section>
           <section>
             <h2 className="text-2xl font-semibold text-foreground">Local data</h2>
-            <p className="mt-3">The macOS app stores its Relay device credential in Keychain. The local Companion keeps only the runtime state required to connect the active Shuttle Plugin, route live task operations, and proxy services that the owner explicitly configured.</p>
+            <p className="mt-3">The macOS app stores its Relay device credential in <code>~/Library/Application Support/Shuttle/credentials.json</code> with owner-only file permissions. The local Companion keeps only the runtime state required to connect the active Shuttle Plugin, route live task operations, and proxy services that the owner explicitly configured.</p>
           </section>
           <section>
             <h2 className="text-2xl font-semibold text-foreground">Sharing and deletion</h2>

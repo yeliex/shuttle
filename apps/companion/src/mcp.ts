@@ -235,7 +235,7 @@ export const serveMcp = async (): Promise<void> => {
     mcp.handle('initialize', () => ({
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: 'shuttle', version: '0.1.0' },
+        serverInfo: { name: 'shuttle', version: '0.1.1' },
     }));
     mcp.handle('notifications/initialized', () => undefined);
     mcp.handle('tools/list', () => ({ tools }));

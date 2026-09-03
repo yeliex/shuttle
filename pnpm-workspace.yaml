@@ -17,3 +17,8 @@ catalog:
 
 minimumReleaseAgeExclude:
   - nodemailer@9.1.0
+
+overrides:
+  deepmerge-ts@<8.0.0: ^8.0.0
+  mysql2@<3.22.0: ^3.22.0
+  mysql2@<=3.23.0: ^3.23.1

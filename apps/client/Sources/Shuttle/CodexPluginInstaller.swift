@@ -75,7 +75,14 @@ final class CodexPluginInstaller {
             executableURL: cliURL,
             arguments: ["plugin", "marketplace", "list", "--json"]
         )
-        if try !Self.hasShuttleMarketplace(in: marketplaces) {
+        if try Self.hasShuttleMarketplace(in: marketplaces) {
+            _ = try await commandRunner.run(
+                executableURL: cliURL,
+                arguments: [
+                    "plugin", "marketplace", "upgrade", "shuttle", "--json",
+                ]
+            )
+        } else {
             _ = try await commandRunner.run(
                 executableURL: cliURL,
                 arguments: [

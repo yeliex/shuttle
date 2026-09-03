@@ -29,18 +29,16 @@ export default function Documentation() {
           <section id="install" className="docs-section">
             <h2>Install Shuttle</h2>
             <ol>
-              <li>Download the latest ZIP from <a href="https://github.com/yeliex/shuttle/releases/latest">GitHub Releases</a>.</li>
+              <li>On an Apple Silicon Mac running macOS 15 or later, download the latest ZIP from <a href="https://github.com/yeliex/shuttle/releases/latest">GitHub Releases</a>.</li>
               <li>Move <code>Shuttle.app</code> to Applications and open it.</li>
               <li>If macOS blocks the first launch, open System Settings → Privacy &amp; Security and choose <strong>Open Anyway</strong> only for a build downloaded from this repository.</li>
               <li>In the setup window, install the Codex Plugin and sign in to the default hosted Relay. These actions are independent.</li>
               <li>After installing the Plugin, open a new Codex task. Reopen <strong>Set Up Shuttle…</strong> from the menu bar whenever you need to check the Plugin, change Relay, or sign in again.</li>
             </ol>
-            <p>Shuttle is currently distributed without Apple notarization. In-app updates are verified with Sparkle Ed25519 signatures, checked automatically, and shown with release notes before installation.</p>
-
             <h3>Automatic Plugin setup</h3>
             <p>Shuttle uses the CLI bundled with Codex Desktop when available, then falls back to the CLI in your PATH. If automatic setup cannot complete, install the Plugin manually:</p>
             <CodeBlock title="Terminal">{"codex plugin marketplace add yeliex/shuttle --ref master\ncodex plugin add shuttle@shuttle"}</CodeBlock>
-            <p>Open a new Codex task after installation or an update. Existing tasks do not load newly installed plugins. If the Plugin starts while Shuttle is closed, it opens the installed app automatically.</p>
+            <p>Open a new Codex task after installation or an update. Existing tasks do not load newly installed plugins. Reopen <strong>Set Up Shuttle…</strong> and click the Plugin row to refresh an existing installation. If the Plugin starts while Shuttle is closed, it opens the installed app automatically.</p>
             <p>LLMs can read the same minimal setup instructions at <a href="/Agents.md"><code>https://shuttle.makesth.fun/Agents.md</code></a>.</p>
           </section>
 
@@ -61,7 +59,7 @@ export default function Documentation() {
           <section id="collaborate" className="docs-section">
             <h2>Collaborate from Codex</h2>
             <h3>Share a task</h3>
-            <p>Ask Codex to share the current task through Shuttle. The native authorization window lets you choose a specific email or an expiring link, grant read or message access, and decide whether the collaborator may open included previews.</p>
+            <p>Ask Codex to share the current task through Shuttle, or invoke the Shuttle Skill with <code>/shuttle share</code>. The native authorization window lets you choose a specific email or an expiring link, grant read or message access, and decide whether the collaborator may open included previews.</p>
 
             <h3>Read or message a shared task</h3>
             <p>Copy the collaboration prompt from Shuttle and give it to Codex in your own task. It includes an exact resource link:</p>
@@ -106,7 +104,13 @@ export default function Documentation() {
                   <tr><td className="p-3 font-mono">AUTH_PROVIDER_ALLOWED_DOMAINS</td><td className="p-3">Optional comma-separated email-domain allowlist for every sign-in method.</td></tr>
                   <tr><td className="p-3 font-mono">ADMIN_EMAILS</td><td className="p-3">Optional comma-separated Relay administrator emails.</td></tr>
                   <tr><td className="p-3 font-mono">GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET</td><td className="p-3">Required when GitHub OAuth is enabled.</td></tr>
-                  <tr><td className="p-3 font-mono">SMTP_*</td><td className="p-3">Invitation, one-time sign-in, and verification email delivery. Use 587/STARTTLS or 465/TLS on Workers.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_HOST</td><td className="p-3">SMTP server hostname.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_PORT</td><td className="p-3">SMTP server port, commonly <code>587</code> or <code>465</code>.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_SECURITY</td><td className="p-3"><code>starttls</code> for port 587 or <code>tls</code> for port 465.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_USERNAME</td><td className="p-3">SMTP account username.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_PASSWORD</td><td className="p-3">SMTP account password or app-specific password.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_FROM</td><td className="p-3">Sender email address.</td></tr>
+                  <tr><td className="p-3 font-mono">SMTP_FROM_NAME</td><td className="p-3">Optional sender display name.</td></tr>
                   <tr><td className="p-3 font-mono">DATABASE_URL</td><td className="p-3">SQLite URL for the Node runtime; Docker defaults to its persistent data volume.</td></tr>
                 </tbody>
               </table>

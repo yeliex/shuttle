@@ -14,21 +14,32 @@ export default function Home() {
             Shuttle connects collaborators through explicitly shared Codex tasks. Read context,
             send feedback, or open an approved local preview while everyone stays in their own task.
           </p>
-          <div className="mt-9 flex flex-wrap gap-3">
-            <a
-              href="https://github.com/yeliex/shuttle/releases/latest"
-              className="rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
-            >
-              Download for macOS
-            </a>
+          <div className="mt-9 flex flex-wrap items-start gap-3">
+            <div className="flex flex-col gap-2">
+              <a
+                href="https://github.com/yeliex/shuttle/releases/latest"
+                className="rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+              >
+                Download for macOS
+              </a>
+              <span className="text-xs text-muted-foreground">Apple Silicon · macOS 15 or later</span>
+            </div>
             <Link href="/docs/" className="rounded-md border px-5 py-3 text-sm font-medium hover:bg-muted">
               Read the docs
             </Link>
           </div>
         </div>
-        <CodeBlock title="From your own Codex task">
-          {'Read shuttle://shared/7d5d… and tell the owner:\n“Please check the empty state on mobile.”'}
-        </CodeBlock>
+        <div>
+          <h2 className="text-xl font-semibold">Set up with Codex</h2>
+          <p className="mt-2 leading-7 text-muted-foreground">
+            Copy this prompt into a Codex task to install and initialize Shuttle.
+          </p>
+          <div className="mt-5">
+            <CodeBlock title="Prompt" copyable>
+              Read https://shuttle.makesth.fun/Agents.md and set up Shuttle for this Codex task.
+            </CodeBlock>
+          </div>
+        </div>
       </section>
 
       <section className="border-y bg-muted/35">

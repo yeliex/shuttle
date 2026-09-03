@@ -215,6 +215,7 @@ worker.all('*', async (context, next) => {
 });
 
 worker.get('/app/assets/*', (context) => context.env.ASSETS.fetch(context.req.raw));
+worker.get('/app/icon.svg', (context) => context.env.ASSETS.fetch(context.req.raw));
 worker.get('/app', (context) => {
     const shell = new URL('/app/', context.req.url);
     return context.env.ASSETS.fetch(new Request(shell, context.req.raw));

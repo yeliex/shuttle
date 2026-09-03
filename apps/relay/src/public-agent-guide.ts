@@ -4,7 +4,7 @@ Shuttle lets you collaborate from your own Codex task. It can read, message, or 
 
 ## 1. Install and open Shuttle
 
-Download the latest macOS release:
+On an Apple Silicon Mac running macOS 15 or later, download the latest release:
 https://github.com/yeliex/shuttle/releases/latest
 
 Move Shuttle to Applications and open it. In the setup window, install the Codex plugin and sign in to the hosted Relay at https://shuttle.makesth.fun. These actions are independent. Choose **Relay** only when using a self-hosted deployment.
@@ -17,9 +17,14 @@ Check whether it is already installed:
 
     codex plugin list --json
 
-If Shuttle is missing or disabled, install it from the official Shuttle repository:
+If Shuttle is missing, install it from the official Shuttle repository:
 
     codex plugin marketplace add yeliex/shuttle --ref master
+    codex plugin add shuttle@shuttle
+
+If Shuttle is already installed, refresh its marketplace and plugin:
+
+    codex plugin marketplace upgrade shuttle
     codex plugin add shuttle@shuttle
 
 Run \`codex plugin list --json\` again to verify that \`shuttle@shuttle\` is installed and enabled.
@@ -32,7 +37,7 @@ Give Codex the complete shared-task link you received, for example:
 
     shuttle://shared/00000000-0000-0000-0000-000000000000
 
-Ask Codex to use the Shuttle skill to read the shared task. To send feedback, ask it to use \`send_shared_message\` for that same shared task.
+Ask Codex to use the Shuttle skill to read the shared task. To share the current task directly, invoke \`/shuttle share\`. To send feedback, ask it to use \`send_shared_message\` for that same shared task.
 
 A service link identifies a local preview attached to a task share:
 

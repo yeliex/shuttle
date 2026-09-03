@@ -68,7 +68,7 @@ final class OnboardingController {
     }
 
     func installPlugin() {
-        guard !isCheckingPlugin, !isInstallingPlugin, !pluginReady else { return }
+        guard !isCheckingPlugin, !isInstallingPlugin else { return }
         pluginErrorMessage = nil
         Task {
             do {
