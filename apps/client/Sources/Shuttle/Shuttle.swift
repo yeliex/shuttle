@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import Sparkle
 import SwiftUI
 
@@ -91,6 +92,7 @@ private struct ShuttleMenuBarLabel: View {
 
 private struct ShuttleMenu: View {
     @Environment(\.openWindow) private var openWindow
+    @State private var launchAtLoginEnabled = LaunchAtLoginService.isActive
 
     let companion: CompanionController
     let onboarding: OnboardingController
@@ -122,11 +124,42 @@ private struct ShuttleMenu: View {
 
         Divider()
 
+        Toggle("Launch at Login", isOn: Binding(
+            get: { launchAtLoginEnabled },
+            set: { enabled in
+                do {
+                    try LaunchAtLoginService.setEnabled(enabled)
+                } catch {
+                    NSSound.beep()
+                }
+                launchAtLoginEnabled = LaunchAtLoginService.isActive
+            }
+        ))
+        .onAppear {
+            launchAtLoginEnabled = LaunchAtLoginService.isActive
+        }
+
         Button("Check for Updates…", action: checkForUpdates)
 
         Button("Quit Shuttle") {
             companion.stopImmediately()
             NSApplication.shared.terminate(nil)
+        }
+    }
+}
+
+private enum LaunchAtLoginService {
+    static var isActive: Bool {
+        let status = SMAppService.mainApp.status
+        return status == .enabled || status == .requiresApproval
+    }
+
+    static func setEnabled(_ enabled: Bool) throws {
+        let service = SMAppService.mainApp
+        if enabled, !isActive {
+            try service.register()
+        } else if !enabled, isActive {
+            try service.unregister()
         }
     }
 }
