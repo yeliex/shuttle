@@ -1,9 +1,26 @@
 import { strict as assert } from 'node:assert';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { readFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+test('plugin inherits the Codex Desktop host environment', async () => {
+    const config = JSON.parse(await readFile(
+        new URL('../../../plugins/shuttle/.mcp.json', import.meta.url),
+        'utf8',
+    )) as {
+        mcpServers: {
+            shuttle: { env_vars?: string[] };
+        };
+    };
+
+    assert.deepEqual(config.mcpServers.shuttle.env_vars, [
+        'CODEX_APP_TOOLS_PIPE_PATH',
+        'CODEX_MCP_NODE_PATH',
+    ]);
+});
 
 test('initializes and lists tools before Codex provides task metadata', async () => {
     const environment = { ...process.env };
