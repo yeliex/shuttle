@@ -86,9 +86,9 @@ export default function Documentation() {
             <p>Configure Relay values in Cloudflare Workers Settings → Variables and Secrets. Keep credentials there rather than in <code>wrangler.jsonc</code>. If GitHub login is enabled, set its callback URL to <code>&lt;relay-origin&gt;/api/auth/callback/github</code>.</p>
 
             <h3>Docker and SQLite</h3>
-            <p>The Docker runtime is intended for one instance behind one HTTPS origin. It applies Prisma migrations on startup and persists data under <code>/data</code>.</p>
-            <CodeBlock title="Terminal">{"docker build -t shuttle-relay .\ndocker run --name shuttle-relay -p 8787:8787 \\\n  -e AUTH_SECRET=replace-with-at-least-32-random-characters \\\n  -e AUTH_BASE_URL=https://shuttle.example.com \\\n  -e AUTH_PROVIDERS=email-password \\\n  -e OPEN_REGISTRATION=true \\\n  -v shuttle-data:/data \\\n  shuttle-relay"}</CodeBlock>
-            <p>Do not run multiple Docker replicas against the same SQLite file.</p>
+            <p>The Docker runtime is intended for one instance behind one HTTPS origin. Release images are published to <code>ghcr.io/yeliex/shuttle-relay</code>. They apply Prisma migrations on startup and persist data under <code>/data</code>.</p>
+            <CodeBlock title="Terminal">{"docker pull ghcr.io/yeliex/shuttle-relay:latest\ndocker run --name shuttle-relay -p 8787:8787 \\\n  -e AUTH_SECRET=replace-with-at-least-32-random-characters \\\n  -e AUTH_BASE_URL=https://shuttle.example.com \\\n  -e AUTH_PROVIDERS=email-password \\\n  -e OPEN_REGISTRATION=true \\\n  -v shuttle-data:/data \\\n  ghcr.io/yeliex/shuttle-relay:latest"}</CodeBlock>
+            <p>Use a version tag instead of <code>latest</code> for reproducible deployments. You can also build the repository&apos;s Dockerfile directly. Do not run multiple Docker replicas against the same SQLite file.</p>
           </section>
 
           <section id="configuration" className="docs-section">

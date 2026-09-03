@@ -68,7 +68,7 @@ Subsequent in-app updates are verified with Sparkle Ed25519 signatures. Shuttle 
 
 ## Self-host a Relay
 
-Cloudflare Workers with D1, Durable Objects, and Static Assets is the primary deployment target. A single-instance Docker image with SQLite is also available for private deployments.
+Cloudflare Workers with D1, Durable Objects, and Static Assets is the primary deployment target. A single-instance Docker image with SQLite is published to `ghcr.io/yeliex/shuttle-relay` for private deployments.
 
 The public [deployment guide](https://shuttle.makesth.fun/docs/#deploy) covers both runtimes and all supported environment variables. Start from [`apps/relay/.env.example`](apps/relay/.env.example); keep credentials in the deployment environment rather than committing them.
 

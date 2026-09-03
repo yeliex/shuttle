@@ -1,16 +1,39 @@
-name: Release macOS app
+name: Release Shuttle
 
 on:
   push:
     tags:
       - "v*.*.*"
 
-permissions:
-  contents: write
-
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate release version
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          release_version="${VERSION#v}"
+          [[ "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Release tag must use vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          }
+          plugin_version="$(node --print "JSON.parse(require('node:fs').readFileSync('plugins/shuttle/.codex-plugin/plugin.json', 'utf8')).version.split('+')[0]")"
+          test "$plugin_version" = "$release_version" || {
+            echo "Plugin version $plugin_version does not match release version $release_version" >&2
+            exit 1
+          }
+
   release:
+    needs: validate
     runs-on: macos-15
+    permissions:
+      contents: write
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -73,3 +96,49 @@ jobs:
             --notes-file "artifacts/release/Shuttle-${VERSION#v}.md" \
             --latest \
             --title "Shuttle ${VERSION#v}"
+
+  container:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository_owner }}/shuttle-relay
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate container metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and publish Relay image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
