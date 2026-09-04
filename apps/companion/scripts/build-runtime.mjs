@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const companionRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const runtimeDirectory = resolve(companionRoot, '../../plugins/shuttle/runtime');
+const runtimeDirectory = resolve(companionRoot, 'dist/runtime');
 
 await mkdir(runtimeDirectory, { recursive: true });
 await build({
@@ -24,4 +24,8 @@ await build({
 await copyFile(
     resolve(companionRoot, 'node_modules/ws/LICENSE'),
     resolve(runtimeDirectory, 'ws-LICENSE'),
+);
+await copyFile(
+    resolve(companionRoot, 'node_modules/@modelcontextprotocol/sdk/LICENSE'),
+    resolve(runtimeDirectory, 'mcp-sdk-LICENSE'),
 );

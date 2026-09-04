@@ -1,6 +1,6 @@
 {
   "name": "shuttle",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Collaborate through explicitly shared Codex tasks and local previews.",
   "author": {
     "name": "yeliex",
@@ -17,7 +17,7 @@
   "interface": {
     "displayName": "Shuttle",
     "shortDescription": "Collaborate through explicitly shared Codex tasks.",
-    "longDescription": "Shuttle lets collaborators read authorized Codex tasks live, send synchronous messages, and open approved local previews while everyone keeps their own workspace.",
+    "longDescription": "Shuttle lets collaborators read authorized Codex task history, queue messages for the owner's Codex task, and open approved local previews while everyone keeps their own workspace.",
     "developerName": "yeliex",
     "category": "Productivity",
     "capabilities": [

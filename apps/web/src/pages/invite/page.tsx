@@ -176,7 +176,7 @@ function Invitation() {
 }
 
 function AcceptedInvitation({ sharedThreadId }: { sharedThreadId: string }) {
-    const usagePrompt = `Use the Shuttle skill in a new Codex task to read:
+    const usagePrompt = `Use the Share Thread ($share-thread) skill in a new Codex task to read:
 shuttle://shared/${sharedThreadId}
 
 If Shuttle is not initialized, first read https://shuttle.makesth.fun/Agents.md and follow the setup instructions. To send feedback, use Shuttle's send_shared_message tool for the same shared task.`;

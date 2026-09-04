@@ -37,7 +37,11 @@ Sharing submits from the existing form. A failure leaves its inputs intact and l
 
 ### Companion
 
-The TypeScript Companion runs locally with the Node runtime available in Codex Desktop. While Relay credentials exist, the app keeps it running and restarts it after an unexpected exit. It maintains the authenticated Relay connection, registers task capabilities supplied by the active Shuttle Plugin, calls the Codex host adapter, and proxies explicitly configured localhost services.
+The TypeScript Companion runs locally with the Node runtime available in Codex Desktop. While Relay credentials exist, the app keeps it running and restarts it after an unexpected exit. It maintains the authenticated Relay connection, binds each local Plugin connection to its source task, calls the Codex host adapter, and proxies explicitly configured localhost services.
+
+One Companion-owned `codex app-server --listen stdio://` process handles task operations. `thread/read` and paginated `thread/turns/list` read persisted history without resuming the task. `thread/queue/add` submits messages to Codex's durable local queue; Codex Desktop's original task processes them. The adapter never calls `thread/resume` or `turn/start`, and does not use private App Tools sockets or their code-signing identities.
+
+The adapter checks the installed executable before requests and every five seconds. A changed or moved installation drains current requests, closes the old child, and initializes the new binary. Disconnected children are replaced; uncertain writes are not replayed. Missing installations and incompatible responses fail explicitly. Queue acceptance does not promise execution: Desktop must load the task, busy tasks wait, and interrupted tasks may need owner intervention. Update and closed-Desktop recovery require real lifecycle validation as well as protocol tests.
 
 Codex-specific host details remain inside this adapter. Other packages use Shuttle's typed local protocol and do not depend on Codex bundle layout.
 
@@ -60,17 +64,21 @@ The Next.js site is statically generated. Its output and the Vite application ar
 
 ### Codex Plugin
 
-The packaged Plugin contains the Shuttle MCP runtime and collaboration Skill. It registers the current task with the local Companion and exposes exact tools for sharing, reading, messaging, and preview configuration. If the local Companion is unavailable on macOS, the MCP runtime launches the installed Shuttle app and retries the local connection before failing.
+The packaged Plugin contains the collaboration Skill and a Streamable HTTP MCP configuration pointing to `http://127.0.0.1:19846/mcp`. The MCP implementation is bundled with the macOS app's Companion, not the versioned Plugin cache. The app must be running and signed in; the Skill guides the user to open setup when the local connection is unavailable.
+
+The endpoint uses an independent local bearer credential in `~/Library/Application Support/Shuttle/mcp-headers.json` (owner-only, mode `0600`). Codex reads it through `http_headers_helper`; Relay credentials are not exposed to the Plugin. The server binds only to loopback, validates the Host header, and rejects browser Origin headers.
+
+HTTP transport is stateless so a Companion restart does not invalidate a saved MCP session ID. Calls carry Codex task metadata; no private pipe path or executable path is accepted from HTTP headers. Each local connection remains bound to one source task. Failed mutations are not automatically replayed. Existing shares do not depend on those local connections remaining alive: only the authenticated Relay device channel can request operations by raw Codex task ID, after the Relay checks the current grant and routes to the recorded owner device.
 
 ## Task sharing flow
 
-1. The Shuttle Plugin registers the current Codex task with the local Companion.
+1. The Shuttle Plugin binds its local connection to the current Codex task ID.
 2. The owner invokes `share_thread` from that task.
 3. The macOS app presents an authorization window and collects the owner-approved permission, recipient or link, expiration, and optional services.
-4. The Companion creates task metadata, grants, and invitations through the Relay.
+4. The Companion verifies that the exact task exists, then creates task metadata, grants, and invitations through the Relay.
 5. Email recipients have access immediately after signing in with a verified matching email; unrestricted-link recipients claim access once. Both use the same sharing URL and receive an exact `shuttle://shared/<id>` reference.
 6. A read or message request reaches the Relay, which checks the current session and grant before routing it to the owner's online Companion.
-7. The Companion performs the task operation locally and returns the result synchronously.
+7. The Companion reads persisted history or submits to Codex's local queue and returns that result synchronously. Message success means queue acceptance, not model execution.
 
 The Relay has no path for discovering an unshared local task. A nonexistent task is not created by sharing or message delivery.
 
@@ -122,7 +130,7 @@ Device credentials are stored in `~/Library/Application Support/Shuttle/credenti
 
 ## Host compatibility boundary
 
-Codex Desktop integration is not a stable cross-platform service contract. Shuttle isolates that dependency behind the local host adapter and fails closed when the active task cannot register or the adapter is unavailable. The Relay cannot call Codex directly and receives no ambient access to tasks on an owner's machine.
+Shuttle uses version-sensitive Codex App Server APIs, including experimental history pagination and task queue methods. The adapter opts in during initialization and fails closed on missing tasks, incompatible responses, or an unavailable executable. No generic Codex RPC is exposed through Shuttle MCP. Relay routes only authorized task IDs over the authenticated device channel; it has no local task enumeration endpoint.
 
 This boundary keeps version-sensitive integration details out of the database, Web application, and network protocol while allowing the local adapter to evolve with Codex Desktop.
 
@@ -139,4 +147,4 @@ This boundary keeps version-sensitive integration details out of the database, W
 
 ## Non-goals
 
-Shuttle does not provide shared control of one Codex UI, remote desktop access, automatic task or port discovery, offline task storage, message queues, LDAP, organization workflows, or multi-instance coordination for the SQLite runtime.
+Shuttle does not provide shared control of one Codex UI, remote desktop access, automatic task or port discovery, offline task storage, its own message queue, LDAP, organization workflows, or multi-instance coordination for the SQLite runtime.

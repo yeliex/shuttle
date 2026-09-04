@@ -6,10 +6,12 @@ import { createInterface } from 'node:readline';
 import { type RawData, WebSocket as LocalWebSocket } from 'ws';
 
 import { CompanionService } from './companion-service.js';
+import { CodexAppServer } from './codex-host.js';
 import { JsonLinePeer } from './json-line-peer.js';
 import { getCompanionSocketPath } from './paths.js';
 import { RelayClient } from './relay-client.js';
 import { getCompanionRuntime } from './index.js';
+import { createMcpHttpServer, getMcpAuthorization, MCP_HTTP_PORT } from './mcp-http.js';
 
 const getObject = (value: unknown): Record<string, unknown> => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -299,7 +301,8 @@ export const serveDaemon = async (): Promise<void> => {
     await mkdir(dirname(socketPath), { recursive: true });
 
     const relay = new RelayClient({ baseURL: relayURL, deviceToken });
-    const service = new CompanionService(relay);
+    const codex = new CodexAppServer();
+    const service = new CompanionService(relay, codex);
     const pendingAuthorizations = new Map<string, {
         reject: (error: Error) => void;
         resolve: (decision: AuthorizationDecision) => void;
@@ -337,17 +340,14 @@ export const serveDaemon = async (): Promise<void> => {
 
     const server = createServer((socket: Socket) => {
         const peer = new JsonLinePeer(socket, socket);
-        let unregister: (() => void) | undefined;
         let registeredThreadId: string | undefined;
 
         peer.handle('host.register', (params) => {
             const codexThreadId = getString(params, 'codexThreadId');
-            unregister?.();
+            if (registeredThreadId && registeredThreadId !== codexThreadId) {
+                throw new Error('A local connection can serve only one Codex task');
+            }
             registeredThreadId = codexThreadId;
-            unregister = service.registerHost(codexThreadId, {
-                readThread: () => peer.request('host.readThread', { codexThreadId }),
-                sendMessage: (prompt) => peer.request('host.sendMessage', { codexThreadId, prompt }),
-            });
             return { registered: true, codexThreadId };
         });
         peer.handle('shuttle.shareThread', async (params) => {
@@ -427,11 +427,30 @@ export const serveDaemon = async (): Promise<void> => {
         peer.handle('shuttle.stopSharingLocalService', (params) => (
             service.stopSharingLocalService(getString(params, 'previewServiceId'))
         ));
-        peer.onClose(() => unregister?.());
     });
 
     await listenOnCompanionSocket(server, socketPath);
 
+    const mcpServer = createMcpHttpServer(await getMcpAuthorization());
+    try {
+        await new Promise<void>((resolve, reject) => {
+            mcpServer.once('error', reject);
+            mcpServer.listen(Number(process.env.SHUTTLE_MCP_PORT ?? MCP_HTTP_PORT), '127.0.0.1', () => {
+                mcpServer.removeListener('error', reject);
+                resolve();
+            });
+        });
+    } catch (error) {
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+        throw error;
+    }
+
+    // 安装更新可能暂时阻止启动；本地工具仍可连接并得到明确错误，后台随后恢复。
+    const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
+    void codex.start().catch(() => {});
+    const stopCodex = () => input.close();
+    process.once('SIGTERM', stopCodex);
+    process.once('SIGINT', stopCodex);
     let stopped = false;
     let deviceSocket: WebSocket | undefined;
     const previewHttpRequests = new Map<string, AbortController>();
@@ -559,6 +578,8 @@ export const serveDaemon = async (): Promise<void> => {
                         throw new Error('Relay sent an invalid delivery request');
                     }
                     let result: unknown;
+                    // 仅此已认证的 Relay 通道可请求原始任务 ID；Relay 已验证当前分享、权限与设备。
+                    // 本地 MCP 没有原始读写入口，也无需保留已失效的每任务宿主连接。
                     if (request.method === 'readThread') {
                         result = await service.readFromCodex(request.codexThreadId);
                     } else {
@@ -605,7 +626,6 @@ export const serveDaemon = async (): Promise<void> => {
         socketPath,
     })}\n`);
 
-    const input = createInterface({ input: process.stdin, crlfDelay: Infinity });
     for await (const line of input) {
         try {
             const request = JSON.parse(line) as {
@@ -647,11 +667,16 @@ export const serveDaemon = async (): Promise<void> => {
     }
 
     stopped = true;
+    process.removeListener('SIGTERM', stopCodex);
+    process.removeListener('SIGINT', stopCodex);
+    await codex.close();
     for (const pending of pendingAuthorizations.values()) {
         pending.reject(new Error('Shuttle Client disconnected'));
     }
     pendingAuthorizations.clear();
     deviceSocket?.close();
+    mcpServer.closeAllConnections();
+    await new Promise<void>((resolve) => mcpServer.close(() => resolve()));
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     // Node removes the Unix socket when its server closes.
 };

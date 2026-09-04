@@ -11,12 +11,10 @@ export const getCompanionRuntime = (): CompanionRuntime => ({
 });
 
 export {
-    CodexAppToolsSession,
-    discoverCodexHost,
-    readCompleteCodexThread,
-    readCodexThread,
-    sendCodexMessage,
+    CodexAppServer,
+    discoverCodexExecutable,
+    type CodexHost,
 } from './codex-host.js';
-export { CompanionService, type CodexThreadHost } from './companion-service.js';
+export { CompanionService } from './companion-service.js';
 export { JsonLinePeer } from './json-line-peer.js';
 export { RelayClient, type RelayApi } from './relay-client.js';

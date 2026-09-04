@@ -10,7 +10,7 @@ APP_BINARY="$APP_BUNDLE/Contents/MacOS/Shuttle"
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 cd "$PROJECT_ROOT"
-pnpm build:macos
+pnpm build:macos --version "$(node -p 'require("./plugins/shuttle/.codex-plugin/plugin.json").version')"
 
 open_app() {
     /usr/bin/open -n "$APP_BUNDLE"

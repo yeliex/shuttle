@@ -14,7 +14,9 @@ Tasks and localhost services are private by default. An owner must initiate shar
 
 ### Collaboration is live
 
-Task reads, messages, and previews are routed to the owner's online Companion. If the owner or their device is offline, the request fails. Shuttle does not fall back to a stored task snapshot or queue a message for later delivery.
+Task reads, messages, and previews are routed to the owner's online Companion. If that Companion is offline, the request fails. Reads return Codex's persisted history, not unsaved streaming output or a Shuttle-maintained snapshot. Sending waits for Codex's local queue to accept the message; it does not wait for model execution. Shuttle has no offline queue of its own.
+
+The Companion can read persisted history and submit messages while Codex Desktop is closed, provided Codex remains installed and its data is accessible. Processing waits for the original task to be loaded in Codex Desktop. Busy tasks finish the current turn first; interrupted tasks may require the owner to resume them. An uncertain submission is never automatically retried.
 
 ### Content stays out of Relay storage
 
@@ -33,7 +35,7 @@ A person can be an owner for one task and a collaborator on another.
 Each task share grants one of two permissions:
 
 - `read`: read the complete shared task while its owner is online.
-- `message`: includes read access and allows synchronous messages to the owner's task.
+- `message`: includes read access and allows submitting messages to the owner's Codex task queue.
 
 Preview access is an additional `canPreview` flag on the task grant. A local service is never shared independently from its parent task.
 
@@ -53,7 +55,7 @@ The owner chooses an authorization lifetime of 1, 7, or 30 days, or no expiratio
 
 When SMTP is configured, Shuttle can send invitation, one-time sign-in, and email verification messages. Invitation emails contain metadata and the sharing URL, not Codex task content.
 
-Recipients can also give the full invitation link to the Shuttle Skill and ask it to accept. The MCP tool extracts the code and uses the account signed in through the local Companion. It only accepts links for that Companion's current Relay, enforces the same permissions as the Web page, and returns the task deeplink without reading its content.
+Recipients can also give the full invitation link to the Share Thread Skill and ask it to accept. The MCP tool extracts the code and uses the account signed in through the local Companion. It only accepts links for that Companion's current Relay, enforces the same permissions as the Web page, and returns the task deeplink without reading its content.
 
 ## Codex collaboration
 
@@ -63,7 +65,7 @@ The Shuttle Plugin adds an MCP server and a collaboration Skill to Codex. Common
 - `list_shared_threads`: list task shares available to the signed-in user.
 - `accept_invite`: accept a full sharing link and return its task deeplink.
 - `read_shared_thread`: read an authorized task from its owner's online Companion.
-- `send_shared_message`: send a synchronous message to a shared task.
+- `send_shared_message`: submit a message to a shared task's Codex queue and return after queue acceptance.
 - `share_local_service`: attach an explicitly named localhost service to an existing task share.
 
 Deep links identify exact resources:
@@ -98,5 +100,5 @@ Operators can:
 - The native client currently supports macOS only.
 - The owner must be online for collaboration and previews.
 - Docker deployments are single-instance because they use local SQLite and in-process live routing.
-- LDAP, organizations, approval workflows, offline task copies, message queues, and shared UI control are not supported.
+- LDAP, organizations, approval workflows, offline task copies, Shuttle-managed message queues, and shared UI control are not supported.
 - Codex Desktop integration is version-sensitive and may require a Shuttle update after a Codex update.

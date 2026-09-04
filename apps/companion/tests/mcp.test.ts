@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,20 +11,21 @@ import { fileURLToPath } from 'node:url';
 
 import { JsonLinePeer } from '../src/json-line-peer.js';
 
-test('plugin inherits the Codex Desktop host environment', async () => {
+test('插件只连接固定 HTTP 地址，不依赖 Codex 私有宿主环境', async () => {
     const config = JSON.parse(await readFile(
         new URL('../../../plugins/shuttle/.mcp.json', import.meta.url),
         'utf8',
     )) as {
         mcpServers: {
-            shuttle: { env_vars?: string[] };
+            shuttle: { url: string; command?: string; cwd?: string; env_http_headers: Record<string, string>; http_headers_helper: string };
         };
     };
 
-    assert.deepEqual(config.mcpServers.shuttle.env_vars, [
-        'CODEX_APP_TOOLS_PIPE_PATH',
-        'CODEX_MCP_NODE_PATH',
-    ]);
+    assert.equal(config.mcpServers.shuttle.url, 'http://127.0.0.1:19846/mcp');
+    assert.equal(config.mcpServers.shuttle.command, undefined);
+    assert.equal(config.mcpServers.shuttle.cwd, undefined);
+    assert.equal(config.mcpServers.shuttle.env_http_headers, undefined);
+    assert.equal(config.mcpServers.shuttle.http_headers_helper, '/bin/cat "$HOME/Library/Application Support/Shuttle/mcp-headers.json"');
 });
 
 test('initializes and lists tools before Codex provides task metadata', async () => {
@@ -89,15 +90,6 @@ test('initializes and lists tools before Codex provides task metadata', async ()
 
 test('reconnects an existing MCP session after the Companion restarts', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'shuttle-mcp-'));
-    const resources = join(directory, 'Codex.app/Contents/Resources');
-    const bin = join(resources, 'cua_node/bin');
-    const adapter = join(resources, 'plugins/openai-bundled/plugins/codex-app-tools');
-    await mkdir(bin, { recursive: true });
-    await mkdir(adapter, { recursive: true });
-    await symlink(process.execPath, join(bin, 'node'));
-    await writeFile(join(adapter, 'server.mjs'), '');
-    const hostPipe = join(directory, 'host.sock');
-    await writeFile(hostPipe, '');
     const socketPath = join(directory, 'companion.sock');
     const peers = new Set<JsonLinePeer>();
     let registrations = 0;
@@ -115,8 +107,6 @@ test('reconnects an existing MCP session after the Companion restarts', async ()
     ], { env: {
         ...process.env,
         SHUTTLE_SOCKET_PATH: socketPath,
-        CODEX_MCP_NODE_PATH: join(bin, 'node'),
-        CODEX_APP_TOOLS_PIPE_PATH: hostPipe,
     } });
     const lines = createInterface({ input: child.stdout });
     const responses = lines[Symbol.asyncIterator]();

@@ -12,13 +12,13 @@ Requires an Apple Silicon Mac running macOS 15 or later.
 ## What Shuttle does
 
 - Shares only the Codex tasks an owner explicitly approves.
-- Lets authorized collaborators read a shared task live or send a synchronous message to it.
+- Lets authorized collaborators read a shared task's persisted history or submit feedback to its Codex queue.
 - Keeps each participant in their own Codex task instead of sharing control of one desktop UI.
 - Can relay an explicitly selected localhost service, including HTTP, SSE, WebSocket, and common HMR traffic.
 - Stores accounts, invitations, permissions, devices, and preview configuration in the Relay, but not Codex task content or collaboration messages.
 - Supports the hosted Relay at `https://shuttle.makesth.fun` and self-hosted Relay deployments.
 
-The task owner must be online for task reads, message delivery, and local previews. Shuttle does not maintain an offline task cache or message queue.
+The owner's Companion must be online for task reads, message submission, and local previews. Shuttle does not maintain an offline task cache or message queue. A successful send means Codex's local queue accepted the message, not that it has been processed. Codex Desktop must load the task to process queued messages; a busy task finishes its current turn first, and interrupted tasks may need the owner's intervention.
 
 ## How it works
 
@@ -52,15 +52,15 @@ codex plugin marketplace add yeliex/shuttle --ref master
 codex plugin add shuttle@shuttle
 ```
 
-Once installed, the Plugin opens the Shuttle app automatically when its local Companion is not running.
+Keep Shuttle running and signed in while using its tools. The Plugin connects to the Companion over local HTTP; it does not launch the app. If tools are unavailable, open Shuttle and check **Set Up Shuttle…** before retrying. App updates restart the Companion at the same local address and do not normally require restarting Codex. Installing or changing the Plugin configuration may require a new task.
 
 Ask Codex to share the current task through Shuttle, then choose the collaborator, permission, expiration, and optional local previews in the native authorization window.
 
 Share one link with anyone or restrict it to multiple email addresses. Email recipients get access without an acceptance step after verified sign-in. Link sharing can optionally be single-use. Access lasts 1, 7, or 30 days, or indefinitely; expiry blocks existing recipients from the task and its previews.
 
-You can also invoke the Shuttle Skill directly with `/shuttle share`.
+You can also invoke the Share Thread Skill directly with `/share-thread`.
 
-Collaborators receive a prompt containing a precise resource link such as `shuttle://shared/<id>`. The Shuttle Skill uses that link to read the task or send a message without searching for unrelated tasks.
+Collaborators receive a prompt containing a precise resource link such as `shuttle://shared/<id>`. The Share Thread Skill uses that link to read the task or send a message without searching for unrelated tasks.
 
 ### First launch on macOS
 
@@ -125,7 +125,7 @@ Both sharing actions show an in-place submitting state, then a simulated complet
 - `apps/site`: statically generated website and documentation.
 - `packages/contracts`: shared protocol schemas.
 - `packages/ui`: shared frontend components and styles.
-- `plugins/shuttle`: packaged Codex Plugin, MCP runtime, and collaboration Skill.
+- `plugins/shuttle`: packaged Codex Plugin, HTTP MCP configuration, and collaboration Skill.
 
 ## Security and privacy
 
@@ -135,7 +135,7 @@ Shuttle is designed to fail closed:
 - Every task read, message, and preview request is checked against the current authorization.
 - Task content and message bodies pass through live connections and are not persisted by Shuttle.
 - Revoking a grant, leaving a share, or disconnecting a device removes the corresponding access.
-- Content read from another task is treated as untrusted context by the Shuttle Skill.
+- Content read from another task is treated as untrusted context by the Share Thread Skill.
 
 See the [privacy notice](https://shuttle.makesth.fun/privacy/) for stored data and operator responsibilities.
 

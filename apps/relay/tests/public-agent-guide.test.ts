@@ -15,7 +15,7 @@ test('serves the public agent setup guide without creating a relay runtime', asy
     assert.match(response.headers.get('content-type') ?? '', /^text\/plain;/u);
     assert.match(guide, /codex plugin add shuttle@shuttle/u);
     assert.match(guide, /codex plugin marketplace upgrade shuttle/u);
-    assert.match(guide, /\/shuttle share/u);
+    assert.match(guide, /\/share-thread/u);
     assert.match(guide, /shuttle:\/\/shared\//u);
     assert.match(guide, /shuttle:\/\/service\//u);
     assert.match(guide, /start a new Codex task/u);

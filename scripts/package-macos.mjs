@@ -76,7 +76,7 @@ const verifyAppLaunch = (executablePath) => new Promise((resolveLaunch, rejectLa
     });
 });
 
-if (!authorizationPreview) await run('pnpm', ['build:plugin']);
+if (!authorizationPreview) await run('pnpm', ['build:companion-runtime']);
 await run('swift', ['build', '-c', 'release'], clientRoot);
 const swiftBuildPath = (await run(
     'swift',
@@ -108,18 +108,11 @@ await cp(
     resolve(resourcesPath, 'Shuttle_Shuttle.bundle'),
     { recursive: true },
 );
-await copyFile(
-    resolve(root, 'plugins/shuttle/runtime/cli.mjs'),
-    resolve(resourcesPath, 'companion/cli.mjs'),
-);
-await copyFile(
-    resolve(root, 'plugins/shuttle/runtime/ws-LICENSE'),
-    resolve(resourcesPath, 'companion/ws-LICENSE'),
-);
-await Promise.all([
-    chmod(resolve(macOSPath, 'Shuttle'), 0o755),
-    chmod(resolve(resourcesPath, 'companion/cli.mjs'), 0o755),
-]);
+if (!authorizationPreview) {
+    await cp(resolve(root, 'apps/companion/dist/runtime'), resolve(resourcesPath, 'companion'), { recursive: true });
+    await chmod(resolve(resourcesPath, 'companion/cli.mjs'), 0o755);
+}
+await chmod(resolve(macOSPath, 'Shuttle'), 0o755);
 await run('install_name_tool', [
     '-add_rpath',
     '@executable_path/../Frameworks',

@@ -1,18 +1,12 @@
 import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 
-import {
-    CodexAppToolsSession,
-    discoverCodexHost,
-    readCompleteCodexThread,
-    sendCodexMessage,
-} from './codex-host.js';
 import { JsonLinePeer } from './json-line-peer.js';
 import { getCompanionSocketPath } from './paths.js';
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
-const tools = [
+export const tools = [
     {
         name: 'share_thread',
         description: 'Explicitly share the current Codex task metadata with selected collaborators.',
@@ -74,7 +68,7 @@ const tools = [
     },
     {
         name: 'send_shared_message',
-        description: 'Send a message to an authorized shared Codex task.',
+        description: 'Submit a message to an authorized task\'s Codex queue. Success means queued, not processed. Never automatically retry an uncertain result.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -133,7 +127,7 @@ const getToolName = (params: unknown): string => {
     return name;
 };
 
-const getSourceThreadId = (params: unknown): string => {
+export const getSourceThreadId = (params: unknown): string => {
     if (!params || typeof params !== 'object' || Array.isArray(params)) {
         throw new Error('Tool parameters must be an object');
     }
@@ -184,10 +178,10 @@ const toolResult = (value: unknown): object => ({
     content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
 });
 
-export const serveMcp = async (): Promise<void> => {
+// 任务连接属于 Companion，不随单次 HTTP 请求结束；每个实例只能绑定一条任务。
+export const createMcpSession = () => {
     let sourceThreadId: string | undefined;
     let daemon: JsonLinePeer | undefined;
-    let codexSession: CodexAppToolsSession | undefined;
     let daemonPromise: Promise<JsonLinePeer> | undefined;
 
     const getDaemon = (threadId: string): Promise<JsonLinePeer> => {
@@ -250,30 +244,11 @@ export const serveMcp = async (): Promise<void> => {
                 }
             }
             const nextDaemon = new JsonLinePeer(socket, socket, 5 * 60_000);
-            const nextCodexSession = new CodexAppToolsSession(await discoverCodexHost());
             daemon = nextDaemon;
-            codexSession = nextCodexSession;
             nextDaemon.onClose(() => {
                 if (daemon !== nextDaemon) { return; }
-                nextCodexSession.close();
                 daemon = undefined;
-                codexSession = undefined;
                 daemonPromise = undefined;
-            });
-            nextDaemon.handle('host.readThread', () => (
-                readCompleteCodexThread(nextCodexSession, threadId, threadId)
-            ));
-            nextDaemon.handle('host.sendMessage', (params) => {
-                const prompt = params && typeof params === 'object' && !Array.isArray(params)
-                    ? (params as { prompt?: unknown }).prompt
-                    : undefined;
-                if (typeof prompt !== 'string' || prompt.length === 0) {
-                    throw new Error('prompt must be a non-empty string');
-                }
-                return sendCodexMessage(nextCodexSession, threadId, {
-                    threadId,
-                    prompt,
-                });
             });
             await nextDaemon.request('host.register', { codexThreadId: threadId });
             return nextDaemon;
@@ -283,15 +258,39 @@ export const serveMcp = async (): Promise<void> => {
             if (daemonPromise !== connection) {
                 return;
             }
-            codexSession?.close();
             daemon?.close();
-            codexSession = undefined;
             daemon = undefined;
             daemonPromise = undefined;
         });
         return connection;
     };
 
+    return {
+        async call(params: unknown) {
+            try {
+                return toolResult(await callDaemonTool(
+                    await getDaemon(getSourceThreadId(params)),
+                    getToolName(params),
+                    getArguments(params),
+                ));
+            } catch (error) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: error instanceof Error ? error.message : 'Unknown Shuttle error',
+                    }],
+                    isError: true,
+                };
+            }
+        },
+        close() {
+            daemon?.close();
+        },
+    };
+};
+
+export const serveMcp = async (): Promise<void> => {
+    const session = createMcpSession();
     const mcp = new JsonLinePeer(process.stdin, process.stdout);
     mcp.handle('initialize', () => ({
         protocolVersion: MCP_PROTOCOL_VERSION,
@@ -300,25 +299,8 @@ export const serveMcp = async (): Promise<void> => {
     }));
     mcp.handle('notifications/initialized', () => undefined);
     mcp.handle('tools/list', () => ({ tools }));
-    mcp.handle('tools/call', async (params) => {
-        try {
-            return toolResult(await callDaemonTool(
-                await getDaemon(getSourceThreadId(params)),
-                getToolName(params),
-                getArguments(params),
-            ));
-        } catch (error) {
-            return {
-                content: [{
-                    type: 'text',
-                    text: error instanceof Error ? error.message : 'Unknown Shuttle error',
-                }],
-                isError: true,
-            };
-        }
-    });
+    mcp.handle('tools/call', (params) => session.call(params));
 
     await new Promise<void>((resolve) => mcp.onClose(resolve));
-    codexSession?.close();
-    daemon?.close();
+    session.close();
 };

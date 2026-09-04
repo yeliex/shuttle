@@ -1,7 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtemp, lstat, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, lstat, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,6 +16,20 @@ import { JsonLinePeer } from '../src/json-line-peer.js';
 test('sharing waits for an explicit retry after failure and can be cancelled', { timeout: 15_000 }, async () => {
     const directory = await mkdtemp(join(tmpdir(), 'shuttle-retry-'));
     const socketPath = join(directory, 's');
+    const codexPath = join(directory, 'codex.mjs');
+    const pidPath = join(directory, 'codex.pid');
+    await writeFile(codexPath, `#!/usr/bin/env node
+import { createInterface } from 'node:readline';
+import { writeFileSync } from 'node:fs';
+writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));
+createInterface({ input: process.stdin }).on('line', line => {
+    const request = JSON.parse(line);
+    const result = request.method === 'initialize' ? { userAgent: 'test', codexHome: '/test' }
+        : request.method === 'thread/read' ? { thread: { id: request.params.threadId } } : undefined;
+    if (request.id) process.stdout.write(JSON.stringify({ id: request.id, result }) + '\\n');
+});
+`);
+    await chmod(codexPath, 0o700);
     let attempts = 0;
     let fail = true;
     const relay = createHttpServer((request, response) => {
@@ -39,7 +53,7 @@ test('sharing waits for an explicit retry after failure and can be cancelled', {
     const address = relay.address();
     assert.ok(address && typeof address !== 'string');
     const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('../src/cli.ts', import.meta.url)), 'serve'], {
-        env: { ...process.env, SHUTTLE_SOCKET_PATH: socketPath, SHUTTLE_RELAY_URL: `http://127.0.0.1:${address.port}`, SHUTTLE_DEVICE_TOKEN: 'test-device' },
+        env: { ...process.env, SHUTTLE_CODEX_PATH: codexPath, SHUTTLE_DATA_DIR: directory, SHUTTLE_MCP_PORT: '0', SHUTTLE_SOCKET_PATH: socketPath, SHUTTLE_RELAY_URL: `http://127.0.0.1:${address.port}`, SHUTTLE_DEVICE_TOKEN: 'test-device' },
     });
     const lines = createInterface({ input: child.stdout });
     const events = lines[Symbol.asyncIterator]();
@@ -89,6 +103,9 @@ test('sharing waits for an explicit retry after failure and can be cancelled', {
         const exited = once(child, 'exit');
         child.kill();
         await exited;
+        // Companion 的退出必须同时回收它拥有的 App Server，不能留下孤儿进程。
+        const codexPid = Number(await readFile(pidPath, 'utf8'));
+        assert.throws(() => process.kill(codexPid, 0));
         lines.close();
         relay.closeAllConnections();
         await new Promise<void>((resolve) => relay.close(() => resolve()));

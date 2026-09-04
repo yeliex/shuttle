@@ -29,7 +29,7 @@ If Shuttle is already installed, refresh its marketplace and plugin:
 
 Run \`codex plugin list --json\` again to verify that \`shuttle@shuttle\` is installed and enabled.
 
-After installing or updating the plugin, start a new Codex task. Existing tasks do not load newly installed plugins. When the plugin starts and Shuttle is not running, it attempts to open the installed app automatically.
+After installing or changing the plugin configuration, start a new Codex task. Existing tasks do not load newly installed plugins. Keep Shuttle running and signed in: the plugin uses local HTTP and does not launch the app. If the tools are unavailable, ask the user to open Shuttle and check **Set Up Shuttle…**, then retry tool discovery or a read once. Do not automatically retry a message or another mutation with an uncertain outcome. Updating the Shuttle app alone does not normally require restarting Codex.
 
 ## 3. Use an exact Shuttle link
 
@@ -37,9 +37,11 @@ Give Codex the complete shared-task link you received, for example:
 
     shuttle://shared/00000000-0000-0000-0000-000000000000
 
-Ask Codex to use the Shuttle skill to read the shared task. To share the current task directly, invoke \`/shuttle share\`. To send feedback, ask it to use \`send_shared_message\` for that same shared task.
+Ask Codex to use the Share Thread ($share-thread) skill to read the shared task. To share the current task directly, invoke \`/share-thread\`. To send feedback, ask it to use \`send_shared_message\` for that same shared task.
 
-To accept an invitation, give Codex the full sharing link (including its #code) and ask the Shuttle skill to accept it with \`accept_invite\`. The tool uses the account signed in through Shuttle, validates that the link belongs to the current Relay, and returns the shared task deeplink. Accepting does not automatically read the task or send a message.
+Reads return Codex's persisted task history. Successful sends mean the owner's Codex queue accepted the message, not that it was processed. The owner's Companion must be online; Codex Desktop must load the original task to process it. Busy tasks finish their current turn first, and interrupted tasks may need the owner to resume them. Never automatically retry an uncertain message submission.
+
+To accept an invitation, give Codex the full sharing link (including its #code) and ask the Share Thread ($share-thread) skill to accept it with \`accept_invite\`. The tool uses the account signed in through Shuttle, validates that the link belongs to the current Relay, and returns the shared task deeplink. Accepting does not automatically read the task or send a message.
 
 A service link identifies a local preview attached to a task share:
 

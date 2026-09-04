@@ -1,26 +1,11 @@
 import type { RelayApi, ThreadInviteOptions } from './relay-client.js';
-
-export interface CodexThreadHost {
-    readThread(): Promise<unknown>;
-    sendMessage(prompt: string): Promise<unknown>;
-}
+import type { CodexHost } from './codex-host.js';
 
 export class CompanionService {
-    private readonly hosts = new Map<string, CodexThreadHost>();
-
-    constructor(private readonly relay: RelayApi) {}
-
-    registerHost(codexThreadId: string, host: CodexThreadHost): () => void {
-        this.hosts.set(codexThreadId, host);
-        return () => {
-            if (this.hosts.get(codexThreadId) === host) {
-                this.hosts.delete(codexThreadId);
-            }
-        };
-    }
+    constructor(private readonly relay: RelayApi, private readonly host: CodexHost) {}
 
     async shareThread(codexThreadId: string, title?: string): Promise<unknown> {
-        this.getHost(codexThreadId);
+        await this.host.readThread(codexThreadId);
         return this.relay.createSharedThread(codexThreadId, title);
     }
 
@@ -64,23 +49,16 @@ export class CompanionService {
         return this.relay.readSharedThread(sharedThreadId);
     }
 
-    sendSharedMessage(sharedThreadId: string, prompt: string): Promise<unknown> {
-        return this.relay.sendSharedMessage(sharedThreadId, prompt);
+    async sendSharedMessage(sharedThreadId: string, prompt: string): Promise<unknown> {
+        await this.relay.sendSharedMessage(sharedThreadId, prompt);
+        return { queued: true };
     }
 
     async deliverToCodex(codexThreadId: string, prompt: string): Promise<unknown> {
-        return this.getHost(codexThreadId).sendMessage(prompt);
+        return this.host.sendMessage(codexThreadId, prompt);
     }
 
     async readFromCodex(codexThreadId: string): Promise<unknown> {
-        return this.getHost(codexThreadId).readThread();
-    }
-
-    private getHost(codexThreadId: string): CodexThreadHost {
-        const host = this.hosts.get(codexThreadId);
-        if (!host) {
-            throw new Error('This Codex task is not registered with the local Companion');
-        }
-        return host;
+        return this.host.readCompleteThread(codexThreadId);
     }
 }

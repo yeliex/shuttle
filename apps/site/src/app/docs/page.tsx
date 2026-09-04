@@ -38,7 +38,7 @@ export default function Documentation() {
             <h3>Automatic Plugin setup</h3>
             <p>Shuttle uses the CLI bundled with Codex Desktop when available, then falls back to the CLI in your PATH. If automatic setup cannot complete, install the Plugin manually:</p>
             <CodeBlock title="Terminal">{"codex plugin marketplace add yeliex/shuttle --ref master\ncodex plugin add shuttle@shuttle"}</CodeBlock>
-            <p>Open a new Codex task after installation or an update. Existing tasks do not load newly installed plugins. Reopen <strong>Set Up Shuttle…</strong> and click the Plugin row to refresh an existing installation. If the Plugin starts while Shuttle is closed, it opens the installed app automatically.</p>
+            <p>Open a new Codex task after installing or changing the Plugin configuration. Existing tasks do not load newly installed plugins. Reopen <strong>Set Up Shuttle…</strong> and click the Plugin row to refresh an existing installation. Keep Shuttle running and signed in: the Plugin connects over local HTTP and does not launch the app. Updating Shuttle itself does not normally require restarting Codex.</p>
             <p>LLMs can read the same minimal setup instructions at <a href="/Agents.md"><code>https://shuttle.makesth.fun/Agents.md</code></a>.</p>
           </section>
 
@@ -59,15 +59,15 @@ export default function Documentation() {
           <section id="collaborate" className="docs-section">
             <h2>Collaborate from Codex</h2>
             <h3>Share a task</h3>
-            <p>Ask Codex to share the current task through Shuttle, or invoke the Shuttle Skill with <code>/shuttle share</code>. The native authorization window lets you share one link with anyone or restrict it to multiple email addresses, grant read or message access, and include local previews.</p>
+            <p>Ask Codex to share the current task through Shuttle, or invoke the Share Thread Skill with <code>/share-thread</code>. The native authorization window lets you share one link with anyone or restrict it to multiple email addresses, grant read or message access, and include local previews.</p>
             <p>Email recipients have access after signing in with a verified matching address, without an acceptance step. Unrestricted links can optionally be limited to one successful recipient; opening a link does not consume it.</p>
             <p>Choose an authorization lifetime of 1, 7, or 30 days, or no expiration. Once it expires, existing recipients can no longer read or message the task or access its previews.</p>
-            <p>To join directly from Codex, give the Shuttle Skill the complete invitation link and ask it to accept. The <code>accept_invite</code> tool uses your signed-in Shuttle account and returns the task deeplink. Your app must be connected to the same Relay as the invitation.</p>
+            <p>To join directly from Codex, give the Share Thread Skill the complete invitation link and ask it to accept. The <code>accept_invite</code> tool uses your signed-in Shuttle account and returns the task deeplink. Your app must be connected to the same Relay as the invitation.</p>
 
             <h3>Read or message a shared task</h3>
             <p>Copy the collaboration prompt from Shuttle and give it to Codex in your own task. It includes an exact resource link:</p>
             <CodeBlock>{"shuttle://shared/<shared-task-id>"}</CodeBlock>
-            <p>The Shuttle Skill passes the exact ID to <code>read_shared_thread</code> or <code>send_shared_message</code>. Reads and messages require the owner&apos;s Companion to be online. A successful message response means the owner&apos;s Codex task accepted it.</p>
+            <p>The Share Thread Skill passes the exact ID to <code>read_shared_thread</code> or <code>send_shared_message</code>. Reads return persisted task history and require the owner&apos;s Companion to be online. Sending succeeds when Codex&apos;s local queue accepts the message, not when the task finishes processing it. Busy tasks finish their current turn first; unloaded or interrupted tasks may wait for the owner to load or resume them. Do not automatically retry a message with an uncertain outcome.</p>
 
             <h3>Manage access</h3>
             <p>Owners can update or revoke collaborators and invitations. Collaborators can leave a task shared with them. Removing task access also removes access to every preview attached to that task.</p>

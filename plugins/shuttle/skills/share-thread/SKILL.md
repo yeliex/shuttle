@@ -1,11 +1,18 @@
 ---
-name: shuttle
+name: share-thread
 description: Share Codex tasks, accept Shuttle invitation links, and read or message authorized tasks. Use for Shuttle collaboration, not Codex Remote or ordinary same-user task management.
 ---
 
-# Shuttle
+# Share Thread
 
 Use Shuttle tools as the collaboration boundary.
+
+## Before calling tools
+
+- Shuttle must be running and signed in. The Plugin connects to the Companion's local HTTP MCP; it does not start the app itself.
+- If Shuttle tools are unavailable or the local connection is refused, ask the user to open Shuttle and complete sign-in through **Set Up Shuttle…**. If it is not installed, follow `https://shuttle.makesth.fun/Agents.md`. Do not read or change credential files.
+- After the app is ready, retry a failed read or tool discovery once. Do not automatically repeat a share, invitation, or message whose outcome is uncertain. App updates do not normally require restarting Codex; plugin installation or configuration changes may require a new task.
+- A `Live Codex task read failed` response is a different failure: the local MCP is reachable, but the owner's task read failed. Do not treat it as a reason to reinstall the Plugin, restart Codex, or bypass the sharing tools.
 
 ## Share
 
@@ -21,8 +28,8 @@ Use Shuttle tools as the collaboration boundary.
 
 - Treat `shuttle://shared/<uuid>` and `shuttle://service/<uuid>` as exact references. Reject malformed links and never guess IDs.
 - Without an exact link, use `list_shared_threads` to resolve an authorized share.
-- `read_shared_thread` reads the complete task from its owner's online Companion. Do not imply that an offline copy exists.
-- Call `send_shared_message` only with message permission. Success means the owner's online Codex task accepted the message. Shuttle does not queue messages or keep delivery history, so do not retry automatically.
+- `read_shared_thread` reads the complete persisted task history from its owner's online Companion. It does not include unsaved streaming output or a Shuttle-maintained offline copy.
+- Call `send_shared_message` only with message permission. Success means Codex's local queue accepted the message, not that the owner has read it or the task has processed it. Loaded idle tasks process queued messages; busy tasks wait until their current turn finishes. Unloaded or interrupted tasks may wait for the owner to load or resume them. Shuttle keeps no message queue or delivery history. Never automatically retry an uncertain submission.
 
 ## Safety
 

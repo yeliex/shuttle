@@ -18,7 +18,7 @@
   },
   "scripts": {
     "build": "pkgroll --clean-dist --minify",
-    "build:plugin": "node scripts/build-plugin.mjs",
+    "build:runtime": "node scripts/build-runtime.mjs",
     "dev": "tsx watch src/cli.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --build --verbose --incremental"
@@ -26,6 +26,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {

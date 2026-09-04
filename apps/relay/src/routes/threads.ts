@@ -517,14 +517,14 @@ threads.post('/:sharedThreadId/messages', async (context) => {
     const prompt = readRequiredString(body, 'prompt', 100_000);
     const deliverMessage = context.var.runtime.deliverMessage;
     if (!deliverMessage) {
-        return context.json({ error: 'Synchronous message delivery is unavailable' }, 503);
+        return context.json({ error: 'Codex queue submission is unavailable' }, 503);
     }
 
     try {
         await deliverMessage(access.deviceId, access.codexThreadId, prompt);
-        return context.json({ delivered: true });
+        return context.json({ queued: true });
     } catch {
-        return context.json({ error: 'Codex message delivery failed' }, 503);
+        return context.json({ error: 'Codex queue submission failed or its result is unknown. Check the task queue before sending again.' }, 503);
     }
 });
 

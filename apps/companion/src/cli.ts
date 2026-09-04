@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { CodexAppToolsSession, discoverCodexHost, readCodexThread } from './codex-host.js';
+import { CodexAppServer } from './codex-host.js';
 import { serveDaemon } from './daemon.js';
 import { getCompanionRuntime } from './index.js';
 import { serveMcp } from './mcp.js';
@@ -23,15 +23,11 @@ if (command === 'health') {
         throw new Error('CODEX_THREAD_ID or CODEX_SESSION_ID is required for the probe');
     }
 
-    const session = new CodexAppToolsSession(await discoverCodexHost());
+    const session = new CodexAppServer();
     try {
-        await readCodexThread(session, sourceThreadId, {
-            threadId: sourceThreadId,
-            includeOutputs: false,
-            turnLimit: 1,
-        });
+        await session.readThread(sourceThreadId);
     } finally {
-        session.close();
+        await session.close();
     }
     process.stdout.write(`${JSON.stringify({ status: 'ok', tool: 'read_thread' })}\n`);
 } else {

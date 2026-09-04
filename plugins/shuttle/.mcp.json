@@ -3,13 +3,9 @@
     "shuttle": {
       "title": "Shuttle",
       "description": "Collaborate through explicitly shared Codex tasks.",
-      "cwd": ".",
-      "command": "node",
-      "args": ["./runtime/cli.mjs", "mcp"],
-      "env_vars": [
-        "CODEX_APP_TOOLS_PIPE_PATH",
-        "CODEX_MCP_NODE_PATH"
-      ]
+      "url": "http://127.0.0.1:19846/mcp",
+      "http_headers_helper": "/bin/cat \"$HOME/Library/Application Support/Shuttle/mcp-headers.json\"",
+      "tool_timeout_sec": 300
     }
   }
 }

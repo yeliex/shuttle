@@ -117,6 +117,7 @@ struct ShareAuthorizationView: View {
                     .frame(height: min(CGFloat(request.services.count) * 26 - 8, 104))
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
 
@@ -483,7 +484,7 @@ struct ShareAuthorizationResultView: View {
         Open this Shuttle shared task (sign in with your invited email if needed):
         \(inviteURL)
 
-        Then use the Shuttle skill in a new Codex task to read:
+        Then use the Share Thread ($share-thread) skill in a new Codex task to read:
         shuttle://shared/\(sharedThreadId)
 
         If Shuttle is not initialized, first read https://shuttle.makesth.fun/Agents.md and follow the setup instructions. To send feedback, use Shuttle's send_shared_message tool for the same shared task.
