@@ -24,21 +24,19 @@ import { Skeleton } from '@/ui/skeleton';
 import { toast } from '@/ui/sonner';
 import { Toggle } from '@/ui/toggle';
 import type { SharePermission } from '@shuttle/contracts';
-import { Clock3Icon, CopyIcon, LogOutIcon, MonitorUpIcon, Trash2Icon } from 'lucide-react';
+import { LogOutIcon, MonitorUpIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 import useSWR, { useSWRConfig } from 'swr';
 import useSWRMutation from 'swr/mutation';
 
-import { InviteDialog } from '@/components/invite-dialog.tsx';
+import { ShareSettingsForm, TaskReference } from '@/components/invite-dialog.tsx';
 import { OpenPreviewButton } from '@/components/preview-detail.tsx';
 import {
     deletePreviewService,
     deleteSharedThread,
     leaveSharedThread,
     revokeGrant,
-    revokeInvite,
     type ShareGrant,
-    type ShareInvite,
     type SharedThreadDetail,
     type SharedThreadSummary,
     type ThreadPreviewService,
@@ -47,116 +45,73 @@ import {
 import { formatDate, initials } from '@/libs/format.ts';
 
 export function ShareDialog({
-    onChanged,
-    onOpenChange,
-    open,
-    thread,
+    onChanged, onOpenChange, open, thread, view = 'settings',
 }: {
     onChanged: () => void;
     onOpenChange: (open: boolean) => void;
     open: boolean;
     thread: SharedThreadSummary;
+    view?: 'settings' | 'people';
 }) {
     const { mutate } = useSWRConfig();
     const owner = thread.permission === 'owner';
-    const [leaving, setLeaving] = useState(false);
-    const detailKey = owner && open
-        ? `/api/shared-threads/${encodeURIComponent(thread.id)}?includeContent=false`
-        : null;
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string>();
+    const detailKey = owner && open ? `/api/shared-threads/${encodeURIComponent(thread.id)}?includeContent=false` : null;
     const detail = useSWR<{ thread: SharedThreadDetail }>(detailKey);
-    const deletion = useSWRMutation(
-        ['delete-shared-thread', thread.id],
-        () => deleteSharedThread(thread.id),
-    );
     const refresh = () => {
-        if (detailKey) {
-            void mutate(detailKey);
-        }
+        if (detailKey) void mutate(detailKey);
         onChanged();
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col sm:max-w-2xl">
+        <Dialog open={open} onOpenChange={(value) => { if (!busy) onOpenChange(value); }}>
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-xl" showCloseButton={!busy}>
                 <DialogHeader>
-                    <DialogTitle>{thread.title || 'Untitled task'}</DialogTitle>
-                    <DialogDescription>
-                        {owner
-                            ? 'Manage this share, its collaborators, and included local services.'
-                            : `Shared by ${thread.owner.name}. Use it from your own Codex task.`}
-                    </DialogDescription>
+                    <DialogTitle>{owner ? view === 'people' ? 'Authorized people' : 'Share settings' : 'Shared with you'}</DialogTitle>
+                    <DialogDescription>{thread.title || 'Untitled task'}</DialogDescription>
                 </DialogHeader>
                 <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pr-1">
-                    <TaskReference thread={thread} />
-                    {owner && <Separator />}
-                    {owner && (detail.error ? (
-                        <p className="text-sm text-destructive">{detail.error.message}</p>
-                    ) : detail.isLoading || !detail.data ? (
-                        <ManageSkeleton />
+                    {owner ? detail.error ? (
+                        <p role="alert" className="text-sm text-destructive">{detail.error.message}</p>
+                    ) : !detail.data ? <ManageSkeleton /> : view === 'people' ? (
+                        <AccessList detail={detail.data.thread} onChanged={refresh} />
                     ) : (
                         <>
-                            <InviteDialog
-                                sharedThreadId={thread.id}
-                                title={thread.title || 'Untitled task'}
-                                hasServices={detail.data.thread.previewServices.length > 0}
-                                onCreated={refresh}
-                            />
+                            <ShareSettingsForm detail={detail.data.thread} onSaved={refresh} onBusyChange={setBusy}>
+                                <ServicesList services={detail.data.thread.previewServices} onChanged={refresh} />
+                            </ShareSettingsForm>
                             <Separator />
-                            <ServicesList
-                                services={detail.data.thread.previewServices}
-                                onChanged={refresh}
-                            />
-                            <Separator />
-                            <AccessList detail={detail.data.thread} onChanged={refresh} />
-                            <Separator />
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive">
-                                        <Trash2Icon data-icon="inline-start" />
-                                        Stop sharing
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Stop sharing this task?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            Collaborator access, invitations, and included services will stop immediately.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            variant="destructive"
-                                            onClick={async () => {
-                                                await deletion.trigger();
-                                                onOpenChange(false);
-                                                onChanged();
-                                                toast.success('Task sharing stopped');
-                                            }}
-                                        >Stop sharing</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </>
-                    ))}
-                    {!owner && (
-                        <>
-                            <Separator />
-                            <Button
-                                variant="outline"
-                                disabled={leaving}
-                                onClick={async () => {
-                                    setLeaving(true);
-                                    try {
-                                        await leaveSharedThread(thread.id);
-                                        onOpenChange(false);
-                                        onChanged();
-                                        toast.success('Left shared task');
-                                    } finally {
-                                        setLeaving(false);
-                                    }
+                            <RevokeButton
+                                actionLabel="Stop sharing"
+                                label="Stop sharing"
+                                description="Collaborator access, invitations, and included services will stop immediately."
+                                disabled={busy}
+                                onRevoke={async () => {
+                                    await deleteSharedThread(thread.id);
+                                    onOpenChange(false);
+                                    onChanged();
+                                    toast.success('Task sharing stopped');
                                 }}
-                            >
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <TaskReference thread={thread} />
+                            <Separator />
+                            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                            <Button variant="outline" disabled={busy} onClick={async () => {
+                                setBusy(true);
+                                setError(undefined);
+                                try {
+                                    await leaveSharedThread(thread.id);
+                                    onOpenChange(false);
+                                    onChanged();
+                                    toast.success('Left shared task');
+                                } catch (failure) {
+                                    setError(failure instanceof Error ? failure.message : 'Unable to leave this share.');
+                                } finally { setBusy(false); }
+                            }}>
                                 <LogOutIcon data-icon="inline-start" />
                                 Leave shared task
                             </Button>
@@ -165,54 +120,6 @@ export function ShareDialog({
                 </div>
             </DialogContent>
         </Dialog>
-    );
-}
-
-function TaskReference({ thread }: { thread: SharedThreadSummary }) {
-    const deepLink = `shuttle://shared/${thread.id}`;
-    const messageInstruction = thread.permission === 'read'
-        ? 'This share is read-only.'
-        : thread.permission === 'owner'
-            ? "If the collaborator has message permission, use Shuttle's send_shared_message tool for the same shared task."
-            : "To send feedback, use Shuttle's send_shared_message tool for the same shared task.";
-    const prompt = `Use the Shuttle skill in a new Codex task to read:
-${deepLink}
-
-If Shuttle is not initialized, first read https://shuttle.makesth.fun/Agents.md and follow the setup instructions. ${messageInstruction}`;
-
-    return (
-        <section>
-            <h3 className="text-sm font-semibold">Use in Codex</h3>
-            <div className="mt-3 flex items-center gap-2 rounded-xl border p-3">
-                <code className="min-w-0 flex-1 truncate text-xs">{deepLink}</code>
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    title="Copy deep link"
-                    aria-label="Copy task deep link"
-                    onClick={async () => {
-                        await navigator.clipboard.writeText(deepLink);
-                        toast.success('Deep link copied');
-                    }}
-                >
-                    <CopyIcon />
-                </Button>
-            </div>
-            <pre className="mt-3 max-h-52 overflow-auto whitespace-pre-wrap rounded-xl bg-muted/60 p-4 font-mono text-xs leading-5 text-muted-foreground">
-                {prompt}
-            </pre>
-            <Button
-                className="mt-3"
-                variant="outline"
-                onClick={async () => {
-                    await navigator.clipboard.writeText(prompt);
-                    toast.success('Codex prompt copied');
-                }}
-            >
-                <CopyIcon data-icon="inline-start" />
-                Copy prompt
-            </Button>
-        </section>
     );
 }
 
@@ -283,37 +190,17 @@ function ServiceRow({
 }
 
 function AccessList({ detail, onChanged }: { detail: SharedThreadDetail; onChanged: () => void }) {
-    const hasServices = detail.previewServices.length > 0;
+    const expired = Boolean(detail.expiresAt && new Date(detail.expiresAt) <= new Date());
     return (
-        <section>
-            <h3 className="text-sm font-semibold">People with access</h3>
-            <div className="mt-3 flex flex-col gap-3">
-                {detail.grants?.length ? detail.grants.map((grant) => (
-                    <GrantRow
-                        key={grant.id}
-                        grant={grant}
-                        hasServices={hasServices}
-                        sharedThreadId={detail.id}
-                        onChanged={onChanged}
-                    />
-                )) : <p className="text-sm text-muted-foreground">No collaborators yet.</p>}
-            </div>
-
-            {!!detail.invites?.length && (
-                <>
-                    <h3 className="mt-6 text-sm font-semibold">Invitations</h3>
-                    <div className="mt-3 flex flex-col gap-3">
-                        {detail.invites.map((invite) => (
-                            <InviteRow
-                                key={invite.id}
-                                invite={invite}
-                                sharedThreadId={detail.id}
-                                onChanged={onChanged}
-                            />
-                        ))}
-                    </div>
-                </>
-            )}
+        <section className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+                {expired ? 'Access has expired for these people.' : detail.expiresAt ? `Access expires ${formatDate(detail.expiresAt)}.` : 'Access remains active until revoked.'}
+                {' '}Email recipients are already authorized; no acceptance is required.
+            </p>
+            {detail.grants?.length ? detail.grants.map((grant) => (
+                <GrantRow key={grant.id} grant={grant} hasServices={detail.previewServices.length > 0}
+                    sharedThreadId={detail.id} onChanged={onChanged} />
+            )) : <p className="text-sm text-muted-foreground">No authorized people yet.</p>}
         </section>
     );
 }
@@ -341,7 +228,7 @@ function GrantRow({
     );
 
     return (
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-2 sm:flex">
             <Avatar className="size-8">
                 <AvatarImage src={grant.user?.image ?? undefined} alt="" />
                 <AvatarFallback>{initials(grant.user?.name ?? grant.email)}</AvatarFallback>
@@ -350,109 +237,55 @@ function GrantRow({
                 <p className="truncate text-sm font-medium">{grant.user?.name ?? grant.email}</p>
                 <p className="truncate text-xs text-muted-foreground">{grant.email}</p>
             </div>
-            {hasServices && (
-                <Toggle
-                    variant="outline"
-                    size="sm"
-                    pressed={grant.canPreview}
-                    disabled={update.isMutating}
-                    title="Allow local services"
-                    aria-label={`Allow local services for ${grant.user?.name ?? grant.email}`}
-                    onPressedChange={async (canPreview) => {
-                        await update.trigger({ canPreview, permission: grant.permission });
-                        onChanged();
-                    }}
-                >
-                    <MonitorUpIcon />
-                </Toggle>
-            )}
-            <Select
-                value={grant.permission}
-                disabled={update.isMutating}
-                onValueChange={async (value) => {
-                    await update.trigger({
-                        canPreview: grant.canPreview,
-                        permission: value as SharePermission,
-                    });
-                    onChanged();
-                }}
-            >
-                <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                    <SelectGroup>
-                        <SelectItem value="read">Read only</SelectItem>
-                        <SelectItem value="message">Read & message</SelectItem>
-                    </SelectGroup>
-                </SelectContent>
-            </Select>
-            <RevokeButton
-                label={`Remove ${grant.user?.name ?? grant.email}`}
-                description="They will immediately lose access to this shared task and its services."
-                onRevoke={async () => {
-                    await revoke.trigger();
-                    onChanged();
-                }}
-            />
-        </div>
-    );
-}
-
-function InviteRow({
-    invite,
-    onChanged,
-    sharedThreadId,
-}: {
-    invite: ShareInvite;
-    onChanged: () => void;
-    sharedThreadId: string;
-}) {
-    const revoke = useSWRMutation(
-        ['revoke-invite', sharedThreadId, invite.id],
-        () => revokeInvite(sharedThreadId, invite.id),
-    );
-    const expired = Boolean(invite.expiresAt && new Date(invite.expiresAt) <= new Date());
-    const status = expired ? 'Expired' : invite.singleUse && invite.acceptedAt ? 'Claimed' : 'Active';
-
-    return (
-        <div className="rounded-xl border p-3 text-sm">
-            <div className="flex items-center gap-3">
-                <Clock3Icon className="size-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{invite.restricted ? 'Selected people' : 'Anyone with the link'}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {status} · {invite.canPreview ? 'Task and services' : 'Task only'} · expires {invite.expiresAt ? formatDate(invite.expiresAt) : 'Never'}
-                    </p>
-                </div>
-                {invite.inviteURL && !expired && (
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        title="Copy invitation link"
-                        aria-label="Copy public invitation link"
-                        onClick={async () => {
-                            await navigator.clipboard.writeText(invite.inviteURL ?? '');
-                            toast.success('Invitation link copied');
+            <div className="col-span-2 flex shrink-0 items-center justify-end gap-2">
+                {hasServices && (
+                    <Toggle
+                        variant="outline"
+                        size="sm"
+                        pressed={grant.canPreview}
+                        disabled={update.isMutating}
+                        title="Allow local services"
+                        aria-label={`Allow local services for ${grant.user?.name ?? grant.email}`}
+                        onPressedChange={async (canPreview) => {
+                            try {
+                                await update.trigger({ canPreview, permission: grant.permission });
+                                onChanged();
+                            } catch { toast.error('Unable to update access. Please try again.'); }
                         }}
                     >
-                        <CopyIcon />
-                    </Button>
+                        <MonitorUpIcon />
+                    </Toggle>
                 )}
-                {!expired && (
-                    <RevokeButton
-                        label="Revoke invitation"
-                        description="This invitation link will stop working immediately."
-                        onRevoke={async () => {
-                            await revoke.trigger();
+                <Select
+                    value={grant.permission}
+                    disabled={update.isMutating}
+                    onValueChange={async (value) => {
+                        try {
+                            await update.trigger({
+                                canPreview: grant.canPreview,
+                                permission: value as SharePermission,
+                            });
                             onChanged();
-                        }}
-                    />
-                )}
+                        } catch { toast.error('Unable to update access. Please try again.'); }
+                    }}
+                >
+                    <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectGroup>
+                            <SelectItem value="read">Read only</SelectItem>
+                            <SelectItem value="message">Read & message</SelectItem>
+                        </SelectGroup>
+                    </SelectContent>
+                </Select>
+                <RevokeButton
+                    label={`Remove ${grant.user?.name ?? grant.email}`}
+                    description="They will immediately lose access to this shared task and its services."
+                    onRevoke={async () => {
+                        await revoke.trigger();
+                        onChanged();
+                    }}
+                />
             </div>
-            {invite.inviteURL && (
-                <p className="mt-2 truncate pl-7 font-mono text-xs text-muted-foreground">
-                    {invite.inviteURL}
-                </p>
-            )}
         </div>
     );
 }
@@ -462,25 +295,43 @@ function RevokeButton({
     description,
     label,
     onRevoke,
+    disabled = false,
 }: {
     actionLabel?: string;
+    disabled?: boolean;
     description: string;
     label: string;
     onRevoke: () => Promise<void>;
 }) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState(false);
+    const [error, setError] = useState<string>();
     return (
-        <AlertDialog>
+        <AlertDialog open={open} onOpenChange={(value) => {
+            if (!pending) { setOpen(value); setError(undefined); }
+        }}>
             <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon-xs" aria-label={label}><Trash2Icon /></Button>
+                <Button type="button" variant="outline" size={actionLabel === 'Stop sharing' ? 'default' : 'icon-xs'} disabled={disabled} aria-label={label}><Trash2Icon />{actionLabel === 'Stop sharing' && actionLabel}</Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{label}?</AlertDialogTitle>
                     <AlertDialogDescription>{description}</AlertDialogDescription>
                 </AlertDialogHeader>
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction variant="destructive" onClick={onRevoke}>{actionLabel}</AlertDialogAction>
+                    <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction variant="destructive" disabled={pending} onClick={async (event) => {
+                        event.preventDefault();
+                        setPending(true);
+                        setError(undefined);
+                        try {
+                            await onRevoke();
+                            setOpen(false);
+                        } catch (failure) {
+                            setError(failure instanceof Error ? failure.message : 'Unable to revoke access. Please try again.');
+                        } finally { setPending(false); }
+                    }}>{pending ? 'Removing…' : actionLabel}</AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

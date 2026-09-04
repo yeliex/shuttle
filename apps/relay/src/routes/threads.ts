@@ -106,6 +106,7 @@ threads.get('/', async (context) => {
             title: true,
             createdAt: true,
             updatedAt: true,
+            _count: { select: { grants: true } },
             device: { select: { name: true } },
             owner: { select: { image: true, name: true } },
             grants: {
@@ -120,12 +121,13 @@ threads.get('/', async (context) => {
     });
 
     return context.json({
-        threads: rows.map(({ grants, previewServices, ...thread }) => {
+        threads: rows.map(({ grants, previewServices, _count, ...thread }) => {
             const owner = thread.ownerId === userId;
             const canPreview = owner || grants[0]?.canPreview === true;
             return {
                 ...thread,
                 canPreview,
+                grantCount: owner ? _count.grants : undefined,
                 device: owner ? thread.device : undefined,
                 deviceId: owner ? thread.deviceId : undefined,
                 permission: owner ? 'owner' : grants[0]?.permission,
@@ -150,7 +152,7 @@ threads.get('/recipients', async (context) => {
         where: {
             disabledAt: null,
             emailVerified: true,
-            email: { contains: query.toLowerCase() },
+            OR: [{ email: { contains: query.toLowerCase() } }, { name: { contains: query } }],
             id: { not: context.var.principal.userId },
         },
         select: { email: true, name: true },
@@ -411,10 +413,16 @@ threads.post('/:sharedThreadId/invites', async (context) => {
         return context.json({ error: 'canPreview and singleUse must be booleans' }, 400);
     }
     const expiresInHours = body.expiresInHours;
-    if (expiresInHours !== null && (typeof expiresInHours !== 'number' || ![24, 168, 720].includes(expiresInHours))) {
+    if (expiresInHours !== undefined && expiresInHours !== null && (typeof expiresInHours !== 'number' || ![24, 168, 720].includes(expiresInHours))) {
         return context.json({ error: 'expiresInHours must be 24, 168, 720, or null' }, 400);
     }
-    const expiresAt = expiresInHours === null ? null : new Date(Date.now() + Number(expiresInHours) * 3_600_000);
+    const current = await database.shareInvite.findUnique({ where: { id: sharedThreadId }, select: { token: true, singleUse: true } });
+    if (expiresInHours === undefined && !current) {
+        return context.json({ error: 'Choose an authorization lifetime for a new share link' }, 400);
+    }
+    // 网页编辑可保留截止时间；只有明确选择新期限才续期，与原生端显式授权一致。
+    const expiresAt = expiresInHours === undefined ? access.expiresAt ?? null
+        : expiresInHours === null ? null : new Date(Date.now() + expiresInHours * 3_600_000);
     const canPreview = body.canPreview;
     const restricted = emails.length > 0;
     const singleUse = !restricted && body.singleUse;
@@ -424,7 +432,6 @@ threads.post('/:sharedThreadId/invites', async (context) => {
     // 一个分享始终使用同一链接；重新配置先关闭旧授权，避免中途暴露旧权限。
     await database.sharedThread.update({ where: { id: sharedThreadId }, data: { expiresAt: new Date(0) } });
     await closeThreadPreviews(context, sharedThreadId);
-    const current = await database.shareInvite.findUnique({ where: { id: sharedThreadId }, select: { token: true, singleUse: true } });
     const token = current?.token ?? createSecret('shuttle_invite');
     await database.shareInvite.deleteMany({ where: { sharedThreadId, id: { not: sharedThreadId } } });
     if (restricted) {

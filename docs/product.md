@@ -39,6 +39,10 @@ Preview access is an additional `canPreview` flag on the task grant. A local ser
 
 Owners can revoke a grant or stop sharing the task. Collaborators can leave a task shared with them. Either action removes access to the task and its services.
 
+The Web app separates **Share settings** from **Authorized people**. Opening an owned task edits its sharing rules and provides the share link, task deeplink, and collaboration prompt. A separate people dialog manages individual permissions and removals, without mixing in invitation links. Saving global share settings applies those permissions to existing collaborators; selected-email sharing replaces the authorized email list. Keeping the current expiry does not renew access.
+
+Recipient search matches both names and email addresses of verified, active accounts. New recipients can be added by entering their full email addresses. Failed submissions retain the form so the owner can retry; copying the updated share is available after a successful save.
+
 ## Invitations
 
 Each shared task has one sharing link. Owners can allow anyone with that link or restrict access to multiple email addresses. All invitation emails use the same link; access is checked against the signed-in account. Email recipients already have permission and do not need to accept an invitation. New or unverified recipients must sign in and verify the invited address first. Registration and domain policies still apply.

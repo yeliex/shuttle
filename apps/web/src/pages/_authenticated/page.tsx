@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/ui/avatar';
 import { Badge } from '@/ui/badge';
+import { Button } from '@/ui/button';
 import { Skeleton } from '@/ui/skeleton';
 import {
     Table,
@@ -26,6 +27,7 @@ export const Route = createFileRoute('/_authenticated/')({
 function SharedTasks() {
     const tasks = useSWR<{ threads: SharedThreadSummary[] }>('/api/shared-threads');
     const [selectedShare, setSelectedShare] = useState<SharedThreadSummary>();
+    const [shareView, setShareView] = useState<'settings' | 'people'>('settings');
     const groups = [
         {
             description: 'Tasks teammates have shared with you.',
@@ -70,11 +72,12 @@ function SharedTasks() {
                                     <Table className="min-w-[46rem] table-fixed">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="w-[30%]">Task</TableHead>
-                                                <TableHead className="w-[30%]">Services</TableHead>
+                                                <TableHead className="w-[26%]">Task</TableHead>
+                                                <TableHead className="w-[26%]">Services</TableHead>
                                                 <TableHead className="w-[22%]">
                                                     {group.owner ? 'Device' : 'Owner'}
                                                 </TableHead>
+                                                {group.owner && <TableHead>Authorized</TableHead>}
                                                 <TableHead className="w-[18%] text-right">Updated</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -84,10 +87,11 @@ function SharedTasks() {
                                                     key={thread.id}
                                                     className="cursor-pointer"
                                                     tabIndex={0}
-                                                    onClick={() => setSelectedShare(thread)}
+                                                    onClick={() => { setShareView('settings'); setSelectedShare(thread); }}
                                                     onKeyDown={(event) => {
-                                                        if (event.key === 'Enter' || event.key === ' ') {
+                                                        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
                                                             event.preventDefault();
+                                                            setShareView('settings');
                                                             setSelectedShare(thread);
                                                         }
                                                     }}
@@ -126,6 +130,12 @@ function SharedTasks() {
                                                             </span>
                                                         </TableCell>
                                                     )}
+                                                    {group.owner && <TableCell>
+                                                        <Button variant="ghost" size="sm" aria-label={`Authorized people for ${thread.title || 'Untitled task'}`}
+                                                            onClick={(event) => { event.stopPropagation(); setShareView('people'); setSelectedShare(thread); }}>
+                                                            {thread.grantCount ?? 0} {thread.grantCount === 1 ? 'person' : 'people'}
+                                                        </Button>
+                                                    </TableCell>}
                                                     <TableCell className="truncate text-right text-muted-foreground">
                                                         {formatRelativeTime(thread.updatedAt)}
                                                     </TableCell>
@@ -145,6 +155,7 @@ function SharedTasks() {
             {selectedShare && (
                 <ShareDialog
                     open
+                    view={shareView}
                     thread={selectedShare}
                     onOpenChange={(open) => !open && setSelectedShare(undefined)}
                     onChanged={() => void tasks.mutate()}

@@ -53,6 +53,7 @@ export interface Device {
 
 export interface SharedThreadSummary {
     canPreview: boolean;
+    grantCount?: number;
     createdAt: string;
     device?: { name: string };
     deviceId?: string;
@@ -94,6 +95,7 @@ export interface ShareInvite {
 }
 
 export interface SharedThreadDetail extends SharedThreadSummary {
+    expiresAt: string | null;
     grants?: ShareGrant[];
     invites?: ShareInvite[];
     owner: User;
@@ -103,6 +105,7 @@ export interface SharedThreadDetail extends SharedThreadSummary {
 export interface CreateInviteResult {
     emailDelivery: 'failed' | 'not-configured' | 'not-requested' | 'sent';
     error?: string;
+    failedEmails?: string[];
     invite: Pick<ShareInvite, 'canPreview' | 'expiresAt' | 'id' | 'permission'>;
     inviteURL: string;
     token: string;
@@ -144,7 +147,7 @@ export interface PreviewServiceSummary {
 
 export const createInvite = (
     sharedThreadId: string,
-    body: { canPreview: boolean; emails: string[]; expiresInHours: number | null; permission: SharePermission; singleUse: boolean },
+    body: { canPreview: boolean; emails: string[]; expiresInHours?: number | null; permission: SharePermission; singleUse: boolean },
 ) => requestJson<CreateInviteResult>(
     `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/invites`,
     jsonRequest(body, { method: 'POST' }),

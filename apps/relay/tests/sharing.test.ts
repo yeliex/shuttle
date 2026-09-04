@@ -66,6 +66,9 @@ test('unified sharing: email access, expiry, multiple recipients and single-use 
         assert.equal(created.status, 201);
         const { thread } = await created.json() as { thread: { id: string } };
         const id = thread.id;
+        assert.equal((await request(`/threads/${id}/invites`, 'owner', 'POST', {
+            emails: [], singleUse: false, permission: 'read', canPreview: false,
+        })).status, 400);
         const configure = (emails: string[], expiresInHours: number | null = 24, singleUse = false) => request(`/threads/${id}/invites`, 'owner', 'POST', {
             emails, expiresInHours, singleUse, permission: 'message', canPreview: true,
         });
@@ -74,6 +77,16 @@ test('unified sharing: email access, expiry, multiple recipients and single-use 
         const { token, inviteURL } = await configured.json() as { token: string; inviteURL: string };
         assert.equal(outbox.length, 3);
         assert.ok(outbox.every((email) => email.text.includes(inviteURL)));
+        const originalDeadline = (await database.sharedThread.findUniqueOrThrow({ where: { id } })).expiresAt;
+        const keepExpiry = await request(`/threads/${id}/invites`, 'owner', 'POST', {
+            emails: ['alex@example.com', 'maya@example.com', 'pending@example.com'],
+            singleUse: false, permission: 'message', canPreview: true,
+        });
+        assert.equal(keepExpiry.status, 201);
+        assert.equal((await keepExpiry.json() as { inviteURL: string }).inviteURL, inviteURL);
+        assert.deepEqual((await database.sharedThread.findUniqueOrThrow({ where: { id } })).expiresAt, originalDeadline);
+        const listing = await (await request('/threads')).json() as { threads: { grantCount: number }[] };
+        assert.equal(listing.threads[0]?.grantCount, 3);
         assert.equal((await acceptFromCompanion(token)).status, 200);
         assert.equal((await acceptFromCompanion(token, 'invalid-device')).status, 401);
         assert.equal((await acceptFromCompanion(token, 'test-other-device')).status, 403);
@@ -143,6 +156,13 @@ test('unified sharing: email access, expiry, multiple recipients and single-use 
 
         const candidates = await (await request('/threads/recipients?q=alex')).json() as { users: { email: string }[] };
         assert.deepEqual(candidates.users.map((user) => user.email), ['alex@example.com']);
+        await database.user.update({ where: { id: 'other' }, data: { name: 'Taylor Designer' } });
+        await database.user.update({ where: { id: 'owner' }, data: { name: 'Taylor Owner' } });
+        await database.user.update({ where: { id: 'pending' }, data: { name: 'Taylor Pending', emailVerified: false } });
+        const byName = await (await request('/threads/recipients?q=taylor')).json() as { users: { email: string }[] };
+        assert.deepEqual(byName.users.map((user) => user.email), ['other@example.com']);
+        await database.user.update({ where: { id: 'other' }, data: { disabledAt: new Date() } });
+        assert.deepEqual((await (await request('/threads/recipients?q=taylor')).json() as { users: unknown[] }).users, []);
         await database.user.delete({ where: { id: winner } });
         assert.equal((await request('/invites/accept', 'other', 'POST', { token })).status, 409);
         assert.equal((await configure([], -1)).status, 400);
