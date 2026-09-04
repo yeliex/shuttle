@@ -290,13 +290,13 @@ function AccessList({ detail, onChanged }: { detail: SharedThreadDetail; onChang
             <div className="mt-3 flex flex-col gap-3">
                 {detail.grants?.length ? detail.grants.map((grant) => (
                     <GrantRow
-                        key={grant.user.id}
+                        key={grant.id}
                         grant={grant}
                         hasServices={hasServices}
                         sharedThreadId={detail.id}
                         onChanged={onChanged}
                     />
-                )) : <p className="text-sm text-muted-foreground">No one has accepted an invitation yet.</p>}
+                )) : <p className="text-sm text-muted-foreground">No collaborators yet.</p>}
             </div>
 
             {!!detail.invites?.length && (
@@ -330,25 +330,25 @@ function GrantRow({
     sharedThreadId: string;
 }) {
     const update = useSWRMutation(
-        ['update-grant', sharedThreadId, grant.user.id],
+        ['update-grant', sharedThreadId, grant.id],
         (_key, { arg }: { arg: { canPreview: boolean; permission: SharePermission } }) => (
-            updateGrant(sharedThreadId, grant.user.id, arg)
+            updateGrant(sharedThreadId, grant.id, arg)
         ),
     );
     const revoke = useSWRMutation(
-        ['revoke-grant', sharedThreadId, grant.user.id],
-        () => revokeGrant(sharedThreadId, grant.user.id),
+        ['revoke-grant', sharedThreadId, grant.id],
+        () => revokeGrant(sharedThreadId, grant.id),
     );
 
     return (
         <div className="flex items-center gap-2">
             <Avatar className="size-8">
-                <AvatarImage src={grant.user.image ?? undefined} alt="" />
-                <AvatarFallback>{initials(grant.user.name)}</AvatarFallback>
+                <AvatarImage src={grant.user?.image ?? undefined} alt="" />
+                <AvatarFallback>{initials(grant.user?.name ?? grant.email)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{grant.user.name}</p>
-                <p className="truncate text-xs text-muted-foreground">{grant.user.email}</p>
+                <p className="truncate text-sm font-medium">{grant.user?.name ?? grant.email}</p>
+                <p className="truncate text-xs text-muted-foreground">{grant.email}</p>
             </div>
             {hasServices && (
                 <Toggle
@@ -357,7 +357,7 @@ function GrantRow({
                     pressed={grant.canPreview}
                     disabled={update.isMutating}
                     title="Allow local services"
-                    aria-label={`Allow local services for ${grant.user.name}`}
+                    aria-label={`Allow local services for ${grant.user?.name ?? grant.email}`}
                     onPressedChange={async (canPreview) => {
                         await update.trigger({ canPreview, permission: grant.permission });
                         onChanged();
@@ -386,7 +386,7 @@ function GrantRow({
                 </SelectContent>
             </Select>
             <RevokeButton
-                label={`Remove ${grant.user.name}`}
+                label={`Remove ${grant.user?.name ?? grant.email}`}
                 description="They will immediately lose access to this shared task and its services."
                 onRevoke={async () => {
                     await revoke.trigger();
@@ -410,20 +410,20 @@ function InviteRow({
         ['revoke-invite', sharedThreadId, invite.id],
         () => revokeInvite(sharedThreadId, invite.id),
     );
-    const expired = new Date(invite.expiresAt) <= new Date();
-    const status = invite.acceptedAt ? 'Accepted' : expired ? 'Expired' : 'Pending';
+    const expired = Boolean(invite.expiresAt && new Date(invite.expiresAt) <= new Date());
+    const status = expired ? 'Expired' : invite.singleUse && invite.acceptedAt ? 'Claimed' : 'Active';
 
     return (
         <div className="rounded-xl border p-3 text-sm">
             <div className="flex items-center gap-3">
                 <Clock3Icon className="size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{invite.recipientEmail || 'Anyone with the link'}</p>
+                    <p className="truncate font-medium">{invite.restricted ? 'Selected people' : 'Anyone with the link'}</p>
                     <p className="truncate text-xs text-muted-foreground">
-                        {status} · {invite.canPreview ? 'Task and services' : 'Task only'} · expires {formatDate(invite.expiresAt)}
+                        {status} · {invite.canPreview ? 'Task and services' : 'Task only'} · expires {invite.expiresAt ? formatDate(invite.expiresAt) : 'Never'}
                     </p>
                 </div>
-                {invite.inviteURL && !invite.acceptedAt && !expired && (
+                {invite.inviteURL && !expired && (
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -437,7 +437,7 @@ function InviteRow({
                         <CopyIcon />
                     </Button>
                 )}
-                {!invite.acceptedAt && !expired && (
+                {!expired && (
                     <RevokeButton
                         label="Revoke invitation"
                         description="This invitation link will stop working immediately."

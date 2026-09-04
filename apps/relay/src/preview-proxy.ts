@@ -83,7 +83,7 @@ const forwardPreviewRequest = async (
 
     try {
         const targetURL = getPreviewTargetURL(access.localUrl, pathPreviewServiceId, context.req.url);
-        const response = await proxy(
+        let response = await proxy(
             access.deviceId,
             previewServiceId,
             targetURL,
@@ -95,6 +95,16 @@ const forwardPreviewRequest = async (
                 method: context.req.method,
             },
         );
+        if (access.expiresAt && response.body) {
+            const expiresAt = access.expiresAt.getTime();
+            const authorizedBody = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+                transform(chunk, controller) {
+                    if (Date.now() >= expiresAt) throw new Error('Share authorization expired');
+                    controller.enqueue(chunk);
+                },
+            }));
+            response = new Response(authorizedBody, response);
+        }
         const location = response.headers.get('location');
         if (!pathPreviewServiceId || !location) {
             return response;

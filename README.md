@@ -56,6 +56,8 @@ Once installed, the Plugin opens the Shuttle app automatically when its local Co
 
 Ask Codex to share the current task through Shuttle, then choose the collaborator, permission, expiration, and optional local previews in the native authorization window.
 
+Share one link with anyone or restrict it to multiple email addresses. Email recipients get access without an acceptance step after verified sign-in. Link sharing can optionally be single-use. Access lasts 1, 7, or 30 days, or indefinitely; expiry blocks existing recipients from the task and its previews.
+
 You can also invoke the Shuttle Skill directly with `/shuttle share`.
 
 Collaborators receive a prompt containing a precise resource link such as `shuttle://shared/<id>`. The Shuttle Skill uses that link to read the task or send a message without searching for unrelated tasks.
@@ -103,6 +105,16 @@ Build the native client separately:
 cd apps/client
 swift build
 ```
+
+To preview the native sharing dialog without signing in or creating an invitation:
+
+```bash
+pnpm build:macos --authorization-preview
+```
+
+Open `artifacts/authorization-preview/Shuttle Preview.app`. This separate app uses example data and does not start the Companion, read account credentials, or check for updates. The title area and empty background can be dragged like the setup window.
+
+Both sharing actions show an in-place submitting state, then a simulated completion screen. Copying uses a nonfunctional example link; no real share or invitation email is created. Close the window with the top-right close icon.
 
 ### Repository layout
 

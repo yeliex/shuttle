@@ -39,6 +39,8 @@ Give Codex the complete shared-task link you received, for example:
 
 Ask Codex to use the Shuttle skill to read the shared task. To share the current task directly, invoke \`/shuttle share\`. To send feedback, ask it to use \`send_shared_message\` for that same shared task.
 
+To accept an invitation, give Codex the full sharing link (including its #code) and ask the Shuttle skill to accept it with \`accept_invite\`. The tool uses the account signed in through Shuttle, validates that the link belongs to the current Relay, and returns the shared task deeplink. Accepting does not automatically read the task or send a message.
+
 A service link identifies a local preview attached to a task share:
 
     shuttle://service/00000000-0000-0000-0000-000000000000

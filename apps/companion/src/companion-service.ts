@@ -1,4 +1,4 @@
-import type { RelayApi } from './relay-client.js';
+import type { RelayApi, ThreadInviteOptions } from './relay-client.js';
 
 export interface CodexThreadHost {
     readThread(): Promise<unknown>;
@@ -39,17 +39,11 @@ export class CompanionService {
 
     createThreadInvite(
         sharedThreadId: string,
-        email: string | undefined,
-        expiresInHours: number,
-        permission: 'message' | 'read',
-        canPreview: boolean,
+        options: ThreadInviteOptions,
     ): Promise<unknown> {
         return this.relay.createThreadInvite(
             sharedThreadId,
-            email,
-            expiresInHours,
-            permission,
-            canPreview,
+            options,
         );
     }
 
@@ -60,6 +54,10 @@ export class CompanionService {
 
     listSharedThreads(): Promise<unknown> {
         return this.relay.listSharedThreads();
+    }
+
+    acceptInvite(inviteURL: string): Promise<unknown> {
+        return this.relay.acceptInvite(inviteURL);
     }
 
     readSharedThread(sharedThreadId: string): Promise<unknown> {

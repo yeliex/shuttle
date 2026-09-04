@@ -1,4 +1,11 @@
 import Foundation
+import Observation
+
+@MainActor @Observable
+final class ShareSubmission {
+    var isSubmitting = false
+    var error: String?
+}
 
 enum SharePermission: String, CaseIterable, Codable, Identifiable {
     case read
@@ -8,8 +15,8 @@ enum SharePermission: String, CaseIterable, Codable, Identifiable {
 
     var label: String {
         switch self {
-        case .read: "Can read"
-        case .message: "Can read and message"
+        case .read: "仅查看"
+        case .message: "查看和发送消息"
         }
     }
 }
@@ -30,9 +37,10 @@ struct ShareAuthorizationRequest: Decodable, Identifiable {
 struct ShareAuthorizationDecision: Encodable {
     let approved: Bool
     let canPreview: Bool
-    let email: String?
+    let emails: [String]
     let expiresInHours: Int
     let permission: SharePermission
+    var singleUse = false
 }
 
 struct CompanionEvent: Decodable {
@@ -43,6 +51,8 @@ struct CompanionEvent: Decodable {
     let services: [SharedLocalService]?
     let title: String?
     let type: String
+    let query: String?
+    let users: [ShareRecipientUser]?
 
     var authorizationRequest: ShareAuthorizationRequest? {
         guard type == "authorization-request",

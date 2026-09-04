@@ -5,6 +5,7 @@ interface PreviewWebSocketAttachment {
     id: string;
     previewServiceId: string;
     type: 'preview';
+    expiresAt: number | null;
 }
 
 const encodeBase64 = (bytes: Uint8Array): string => {
@@ -108,6 +109,8 @@ export class ThreadHub extends DurableObject<RelayBindings> {
                 id,
                 previewServiceId,
                 type: 'preview',
+                expiresAt: request.headers.get('x-shuttle-expires-at')
+                    ? Date.parse(request.headers.get('x-shuttle-expires-at')!) : null,
             } satisfies PreviewWebSocketAttachment);
             this.ctx.acceptWebSocket(server, [
                 `preview:${id}`,
@@ -225,6 +228,10 @@ export class ThreadHub extends DurableObject<RelayBindings> {
             type?: unknown;
         } | null;
         if (attachment?.type === 'preview' && 'id' in attachment) {
+            if (attachment.expiresAt && attachment.expiresAt <= Date.now()) {
+                socket.close(4003, 'Share authorization expired');
+                return;
+            }
             const connection = this.ctx.getWebSockets('device')
                 .find((candidate) => candidate.readyState === 1);
             if (!connection) {
@@ -270,6 +277,11 @@ export class ThreadHub extends DurableObject<RelayBindings> {
         }
         const preview = this.ctx.getWebSockets(`preview:${response.id}`)[0];
         if (preview) {
+            const authorization = preview.deserializeAttachment() as PreviewWebSocketAttachment;
+            if (authorization.expiresAt && authorization.expiresAt <= Date.now()) {
+                preview.close(4003, 'Share authorization expired');
+                return;
+            }
             this.handlePreviewWebSocketMessage(response.id, preview, response);
             return;
         }

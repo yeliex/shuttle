@@ -180,6 +180,7 @@ const proxyPreviewWebSocket: MiddlewareHandler<RelayHonoEnvironment> = async (co
             Upgrade: 'websocket',
             'X-Shuttle-Preview-Service-ID': activePreviewServiceId,
             'X-Shuttle-Target-URL': target.toString(),
+            'X-Shuttle-Expires-At': access.expiresAt?.toISOString() ?? '',
         });
         for (const name of ['origin', 'sec-websocket-protocol', 'user-agent']) {
             const value = context.req.header(name);

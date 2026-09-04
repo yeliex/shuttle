@@ -33,6 +33,7 @@ test('supports managed passwordless accounts, initial passwords, and account dis
             '0003_live_reads_account_status',
             '0004_thread_preview_access',
             '0005_public_invite_token',
+            '0006_share_authorization',
         ]) {
             sqlite.exec(await readFile(
                 resolve('prisma/migrations', migration, 'migration.sql'),

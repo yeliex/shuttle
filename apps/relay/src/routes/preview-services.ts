@@ -9,6 +9,7 @@ import {
     readRequiredString,
 } from '../request.js';
 import type { RelayHonoEnvironment } from '../runtime.js';
+import { activeShare, grantAudience } from '../share-access.js';
 
 export interface PreviewAccess {
     deviceId: string;
@@ -20,6 +21,7 @@ export interface PreviewAccess {
     sharedThreadId: string;
     title?: string | null;
     granted: boolean;
+    expiresAt?: Date | null;
 }
 
 export const normalizeLocalPreviewURL = (value: string): string => {
@@ -53,6 +55,7 @@ export const getPreviewAccess = async (
     previewServiceId: string,
     userId: string,
 ): Promise<PreviewAccess | undefined> => {
+    const audience = await grantAudience(database, userId);
     const service = await database.previewService.findUnique({
         where: { id: previewServiceId },
         select: {
@@ -66,8 +69,9 @@ export const getPreviewAccess = async (
             sharedThread: {
                 select: {
                     title: true,
+                    expiresAt: true,
                     grants: {
-                        where: { canPreview: true, userId },
+                        where: { canPreview: true, ...audience },
                         select: { id: true },
                         take: 1,
                     },
@@ -80,7 +84,9 @@ export const getPreviewAccess = async (
         ? {
             deviceId: service.deviceId,
             deviceRevokedAt: service.device.revokedAt,
-            granted: service.sharedThread.grants.length > 0,
+            granted: service.sharedThread.grants.length > 0
+                && (!service.sharedThread.expiresAt || service.sharedThread.expiresAt > new Date()),
+            expiresAt: service.ownerId === userId ? null : service.sharedThread.expiresAt,
             localUrl: service.localUrl,
             name: service.name,
             ownerId: service.ownerId,
@@ -134,11 +140,12 @@ export const previewServices = new Hono<RelayHonoEnvironment>();
 
 previewServices.get('/', async (context) => {
     const userId = context.var.principal.userId;
+    const audience = await grantAudience(context.var.runtime.database, userId);
     const services = await context.var.runtime.database.previewService.findMany({
         where: {
             OR: [
                 { ownerId: userId },
-                { sharedThread: { grants: { some: { canPreview: true, userId } } } },
+                { sharedThread: { AND: [activeShare(), { grants: { some: { canPreview: true, ...audience } } }] } },
             ],
         },
         orderBy: { updatedAt: 'desc' },
@@ -279,7 +286,7 @@ previewServices.post('/:previewServiceId/session', async (context) => {
         return context.json({ error: 'Preview not found' }, 404);
     }
 
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1_000);
+    const expiresAt = new Date(Math.min(Date.now() + 8 * 60 * 60 * 1_000, access.expiresAt?.getTime() ?? Infinity));
     const token = await createPreviewToken(context.var.runtime.previewTokenSecret, {
         expiresAt: expiresAt.getTime(),
         previewServiceId,
@@ -287,7 +294,7 @@ previewServices.post('/:previewServiceId/session', async (context) => {
     });
     setCookie(context, 'shuttle_preview', token, {
         httpOnly: true,
-        maxAge: 8 * 60 * 60,
+        maxAge: Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1_000)),
         path: '/',
         sameSite: 'Lax',
         secure: new URL(context.var.runtime.baseURL).protocol === 'https:',

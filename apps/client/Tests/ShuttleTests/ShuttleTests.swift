@@ -108,6 +108,43 @@ func decodesAuthorizationResultSharedThreadID() throws {
     #expect(event.sharedThreadId == "thread-1")
 }
 
+@Test
+func encodesMultiRecipientAuthorization() throws {
+    let decision = ShareAuthorizationDecision(
+        approved: true, canPreview: true,
+        emails: ["alex@example.com", "maya@example.com"],
+        expiresInHours: 0, permission: .message, singleUse: false
+    )
+    let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(decision)) as? [String: Any])
+    #expect(object["emails"] as? [String] == ["alex@example.com", "maya@example.com"])
+    #expect(object["expiresInHours"] as? Int == 0)
+    #expect(object["singleUse"] as? Bool == false)
+}
+
+@Test @MainActor
+func searchesRecipientsAndIgnoresStaleResponses() async throws {
+    let recipients = ShareRecipients()
+    var searched: [String] = []
+    recipients.search = { searched.append($0) }
+    recipients.find("al")
+    #expect(recipients.isSearching)
+    recipients.find("alex")
+    for _ in 0..<100 {
+        if !searched.isEmpty { break }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(searched == ["alex"])
+    recipients.receive(query: "al", users: [ShareRecipientUser(email: "wrong@example.com", name: "Wrong")], error: nil)
+    #expect(recipients.users.isEmpty)
+    #expect(recipients.isSearching)
+    recipients.receive(query: "alex", users: [ShareRecipientUser(email: "alex@example.com", name: "Alex")], error: nil)
+    #expect(recipients.users.first?.email == "alex@example.com")
+    #expect(!recipients.isSearching)
+    recipients.find("")
+    #expect(recipients.users.isEmpty)
+    #expect(!recipients.isSearching)
+}
+
 @Test @MainActor
 func rendersShareAuthorizationView() throws {
     let request = ShareAuthorizationRequest(
@@ -127,8 +164,40 @@ func rendersShareAuthorizationView() throws {
     ))
     renderer.scale = 2
     let image = try #require(renderer.nsImage)
-    #expect(image.size.width == 520)
-    #expect(image.size.height > 500)
+    #expect(image.size.width == 460)
+    #expect(image.size.height > 350 && image.size.height < 540)
+}
+
+@Test @MainActor
+func rendersShareResultAtFixedWidth() throws {
+    let renderer = ImageRenderer(content: ShareAuthorizationResultView(
+        error: nil,
+        inviteURL: "https://shuttle.makesth.fun/app/invite#shuttle_invite_" + String(repeating: "a", count: 43),
+        sharedThreadId: "00000000-0000-4000-8000-000000000000",
+        onDone: {}
+    ))
+    let image = try #require(renderer.nsImage)
+    #expect(image.size.width == 460)
+    #expect(image.size.height > 300 && image.size.height < 600)
+}
+
+@Test @MainActor
+func keepsShareFormDuringSubmissionAndFailure() throws {
+    let submission = ShareSubmission()
+    let view = ShareAuthorizationView(
+        request: ShareAuthorizationRequest(id: "test", services: [], title: "Retain this task"),
+        submission: submission,
+        onCancel: {}, onApprove: { _ in }
+    )
+    let initial = try #require(ImageRenderer(content: view).nsImage)
+    submission.isSubmitting = true
+    let pending = try #require(ImageRenderer(content: view).nsImage)
+    #expect(pending.size == initial.size)
+    submission.isSubmitting = false
+    submission.error = "发送失败，请重试。"
+    let failed = try #require(ImageRenderer(content: view).nsImage)
+    #expect(failed.size.width == initial.size.width)
+    #expect(failed.size.height > initial.size.height)
 }
 
 @Test @MainActor
@@ -227,4 +296,42 @@ func restartsCompanionAfterUnexpectedExit() async throws {
 private func runningPID(_ status: CompanionController.Status) -> Int32? {
     guard case let .running(processIdentifier) = status else { return nil }
     return processIdentifier
+}
+
+@Test @MainActor
+func restartWaitsForOldCompanionAndRequiresReadyEvent() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: "shuttle-serialized-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let script = directory.appending(path: "companion.sh")
+    try "echo '{\"type\":\"ready\"}'\nread request\n".write(to: script, atomically: true, encoding: .utf8)
+    let companion = CompanionController(
+        nodeURL: URL(fileURLWithPath: "/bin/sh"),
+        scriptURL: script,
+        credentials: RelayCredentials(
+            relayURL: URL(string: "https://shuttle.example")!,
+            deviceToken: "test-only"
+        )
+    )
+    companion.start()
+    defer { companion.stopImmediately() }
+    #expect(!companion.isReady)
+    let oldPID = try #require(runningPID(companion.status))
+    for _ in 0..<100 {
+        if companion.isReady { break }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(companion.isReady)
+    companion.stopImmediately()
+    companion.start()
+    #expect(companion.status == .stopped)
+    #expect(!companion.isReady)
+    for _ in 0..<250 {
+        if companion.isReady { break }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(companion.isReady)
+    #expect(runningPID(companion.status) != oldPID)
+    #expect(kill(oldPID, 0) == -1)
 }

@@ -171,3 +171,38 @@ test('disconnects an online Companion when its device is revoked', () => {
     assert.equal(hub.isConnected('device-1'), false);
     assert.deepEqual(closes, [[1008, 'This Shuttle device was revoked']]);
 });
+
+test('blocks both directions of an existing preview WebSocket after authorization expires', async (context) => {
+    context.mock.timers.enable({ apis: ['Date'], now: 1_000 });
+    for (const direction of ['browser', 'device']) {
+        const hub = new DeviceHub();
+        const deviceMessages: string[] = [];
+        const browserMessages: string[] = [];
+        const browserCloses: Array<[number | undefined, string | undefined]> = [];
+        hub.connect('device-1', new WSContext({
+            close: () => undefined,
+            readyState: 1,
+            send: (value) => deviceMessages.push(String(value)),
+        }));
+        const id = hub.openPreviewWebSocket('device-1', 'preview-1', 'ws://localhost:5173/', [], [], new WSContext({
+            close: (code, reason) => browserCloses.push([code, reason]),
+            readyState: 1,
+            send: (value) => browserMessages.push(String(value)),
+        }), 2_000);
+        await hub.forwardPreviewWebSocketData(id, 'before expiry');
+        assert.match(deviceMessages.at(-1)!, /before expiry/u);
+
+        context.mock.timers.setTime(2_000);
+        if (direction === 'browser') {
+            await hub.forwardPreviewWebSocketData(id, 'after expiry');
+        } else {
+            hub.handleMessage('device-1', JSON.stringify({
+                event: 'previewWebSocketData', id, data: 'after expiry', binary: false,
+            }));
+        }
+        assert.deepEqual(browserMessages, []);
+        assert.deepEqual(browserCloses, [[4003, 'Share authorization expired']]);
+        assert.equal(deviceMessages.some((message) => message.includes('after expiry')), false);
+        context.mock.timers.setTime(1_000);
+    }
+});

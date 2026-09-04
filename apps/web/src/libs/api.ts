@@ -73,21 +73,24 @@ export interface ThreadPreviewService {
 }
 
 export interface ShareGrant {
+    id: string;
+    email: string;
     canPreview: boolean;
     permission: SharePermission;
     updatedAt: string;
-    user: User;
+    user: User | null;
 }
 
 export interface ShareInvite {
     acceptedAt: string | null;
     createdAt: string;
-    expiresAt: string;
+    expiresAt: string | null;
     id: string;
     inviteURL: string | null;
     canPreview: boolean;
     permission: SharePermission;
-    recipientEmail: string | null;
+    restricted: boolean;
+    singleUse: boolean;
 }
 
 export interface SharedThreadDetail extends SharedThreadSummary {
@@ -108,9 +111,11 @@ export interface CreateInviteResult {
 export interface InspectInviteResult {
     invite: {
         canPreview: boolean;
-        expiresAt: string;
+        expiresAt: string | null;
         permission: SharePermission;
         recipientEmailBound: boolean;
+        hasAccess: boolean;
+        singleUse: boolean;
         sharedThread: {
             id: string;
             owner: Pick<User, 'image' | 'name'>;
@@ -118,6 +123,10 @@ export interface InspectInviteResult {
         };
     };
 }
+
+export const searchRecipients = (query: string) => requestJson<{ users: Pick<User, 'email' | 'name'>[] }>(
+    `/api/shared-threads/recipients?q=${encodeURIComponent(query)}`,
+);
 
 export interface PreviewServiceSummary {
     createdAt: string;
@@ -135,7 +144,7 @@ export interface PreviewServiceSummary {
 
 export const createInvite = (
     sharedThreadId: string,
-    body: { canPreview: boolean; email?: string; expiresInHours: number; permission: SharePermission },
+    body: { canPreview: boolean; emails: string[]; expiresInHours: number | null; permission: SharePermission; singleUse: boolean },
 ) => requestJson<CreateInviteResult>(
     `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/invites`,
     jsonRequest(body, { method: 'POST' }),
@@ -153,15 +162,15 @@ export const acceptInvite = (token: string) => requestJson<{ sharedThreadId: str
 
 export const updateGrant = (
     sharedThreadId: string,
-    userId: string,
+    grantId: string,
     body: { canPreview: boolean; permission: SharePermission },
-) => requestJson<{ grant: { canPreview: boolean; permission: SharePermission; userId: string } }>(
-    `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/grants/${encodeURIComponent(userId)}`,
+) => requestJson<{ grant: { canPreview: boolean; permission: SharePermission; id: string } }>(
+    `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/grants/${encodeURIComponent(grantId)}`,
     jsonRequest(body, { method: 'PUT' }),
 );
 
-export const revokeGrant = (sharedThreadId: string, userId: string) => requestVoid(
-    `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/grants/${encodeURIComponent(userId)}`,
+export const revokeGrant = (sharedThreadId: string, grantId: string) => requestVoid(
+    `/api/shared-threads/${encodeURIComponent(sharedThreadId)}/grants/${encodeURIComponent(grantId)}`,
     { method: 'DELETE' },
 );
 

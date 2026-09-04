@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientRoot = resolve(root, 'apps/client');
-const outputRoot = resolve(root, 'artifacts/macos');
+const authorizationPreview = process.argv.includes('--authorization-preview');
+const outputRoot = resolve(root, authorizationPreview ? 'artifacts/authorization-preview' : 'artifacts/macos');
 
 const readOption = (name, fallback) => {
     const index = process.argv.indexOf(name);
@@ -52,7 +53,7 @@ const verifyAppLaunch = (executablePath) => new Promise((resolveLaunch, rejectLa
     let terminating = false;
     const child = spawn(executablePath, [], {
         cwd: dirname(executablePath),
-        env: process.env,
+        env: { ...process.env, SHUTTLE_LAUNCH_CHECK: '1' },
         stdio: 'ignore',
     });
     const timer = setTimeout(() => {
@@ -75,7 +76,7 @@ const verifyAppLaunch = (executablePath) => new Promise((resolveLaunch, rejectLa
     });
 });
 
-await run('pnpm', ['build:plugin']);
+if (!authorizationPreview) await run('pnpm', ['build:plugin']);
 await run('swift', ['build', '-c', 'release'], clientRoot);
 const swiftBuildPath = (await run(
     'swift',
@@ -84,7 +85,7 @@ const swiftBuildPath = (await run(
     true,
 )).trim();
 
-const appPath = resolve(outputRoot, 'Shuttle.app');
+const appPath = resolve(outputRoot, authorizationPreview ? 'Shuttle Preview.app' : 'Shuttle.app');
 const contentsPath = resolve(appPath, 'Contents');
 const frameworksPath = resolve(contentsPath, 'Frameworks');
 const macOSPath = resolve(contentsPath, 'MacOS');
@@ -133,6 +134,15 @@ await writeFile(
         .replaceAll('__SHUTTLE_BUILD__', buildNumber),
 );
 await writeFile(resolve(contentsPath, 'PkgInfo'), 'APPL????');
+if (authorizationPreview) {
+    const plistPath = resolve(contentsPath, 'Info.plist');
+    await run('plutil', ['-replace', 'CFBundleIdentifier', '-string', 'com.yeliex.shuttle.authorization-preview', plistPath]);
+    await run('plutil', ['-replace', 'CFBundleName', '-string', 'Shuttle Preview', plistPath]);
+    await run('plutil', ['-replace', 'CFBundleDisplayName', '-string', 'Shuttle Preview', plistPath]);
+    await run('plutil', ['-insert', 'ShuttleAuthorizationPreview', '-bool', 'YES', plistPath]);
+    await run('plutil', ['-remove', 'CFBundleURLTypes', plistPath]);
+    await run('plutil', ['-remove', 'SUFeedURL', plistPath]);
+}
 
 const iconsetPath = resolve(outputRoot, 'Shuttle.iconset');
 const iconSource = resolve(clientRoot, 'Sources/Shuttle/Resources/ShuttleAppIcon.svg');

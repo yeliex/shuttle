@@ -259,18 +259,20 @@ try {
     const threadInvitation = await request(`/api/shared-threads/${sharedThreadId}/invites`, {
         body: {
             canPreview: true,
-            email: `qa-collaborator-${suffix}@example.test`,
-            expiresInHours: 1,
+            emails: [`qa-collaborator-${suffix}@example.test`],
+            expiresInHours: 24,
             permission: 'message',
+            singleUse: false,
         },
         deviceToken,
         method: 'POST',
     });
-    await request('/api/invites/accept', {
+    const invitationAccess = await request('/api/invites/inspect', {
         body: { token: threadInvitation.body.token },
         cookie: collaboratorCookie,
         method: 'POST',
     });
+    assert.equal(invitationAccess.body.invite.hasAccess, true);
     const read = await request(`/api/shared-threads/${sharedThreadId}`, {
         cookie: collaboratorCookie,
     });

@@ -53,6 +53,16 @@ const tools = [
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     },
     {
+        name: 'accept_invite',
+        description: 'Accept a Shuttle invitation link using the signed-in Shuttle account. Already authorized recipients receive the task reference without claiming again.',
+        inputSchema: {
+            type: 'object',
+            properties: { inviteURL: { type: 'string', description: 'Full Shuttle sharing URL, including the invitation code after #.' } },
+            required: ['inviteURL'],
+            additionalProperties: false,
+        },
+    },
+    {
         name: 'read_shared_thread',
         description: 'Read an authorized shared task live from its owner\'s online Companion.',
         inputSchema: {
@@ -152,6 +162,9 @@ const callDaemonTool = async (
     if (name === 'list_shared_threads') {
         return daemon.request('shuttle.listSharedThreads', toolArguments);
     }
+    if (name === 'accept_invite') {
+        return daemon.request('shuttle.acceptInvite', toolArguments);
+    }
     if (name === 'read_shared_thread') {
         return daemon.request('shuttle.readSharedThread', toolArguments);
     }
@@ -230,7 +243,7 @@ export const serveMcp = async (): Promise<void> => {
                         socket.destroy();
                         if (Date.now() >= deadline) {
                             throw new Error(
-                                'Shuttle opened, but setup is incomplete. Finish setup in the Shuttle window, then try again.',
+                                'Cannot connect to Shuttle Companion. Check its status in Set Up Shuttle; sign in only if requested, then try again.',
                             );
                         }
                     }
@@ -240,6 +253,13 @@ export const serveMcp = async (): Promise<void> => {
             const nextCodexSession = new CodexAppToolsSession(await discoverCodexHost());
             daemon = nextDaemon;
             codexSession = nextCodexSession;
+            nextDaemon.onClose(() => {
+                if (daemon !== nextDaemon) { return; }
+                nextCodexSession.close();
+                daemon = undefined;
+                codexSession = undefined;
+                daemonPromise = undefined;
+            });
             nextDaemon.handle('host.readThread', () => (
                 readCompleteCodexThread(nextCodexSession, threadId, threadId)
             ));

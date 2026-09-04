@@ -29,11 +29,19 @@ Shuttle separates local Codex access from shared identity and authorization. Cod
 
 The native Swift menu bar app owns user-facing system integration: Relay sign-in, the authorization window, Companion lifecycle, Plugin setup, local device credentials, deep links, and Sparkle updates. On incomplete setup it presents one setup window with independent Plugin installation, Relay selection, and sign-in controls. The hosted Relay is selected by default, and the same window remains available from the menu bar for Plugin checks, Relay changes, and renewed sign-in.
 
+Reopening the app brings setup to the current display and Space, including over full-screen applications. Setup distinguishes saved sign-in from local Companion readiness. Reopening also recovers a missing Companion socket without resetting credentials.
+
+Setup and sharing use the same content-sized, draggable SwiftUI surface hosted in a nonactivating floating panel. Presenting the panel does not activate the application or switch away from the current full-screen Space. Authorization previews use a separate app identity and never start the Companion or load credentials.
+
+Sharing submits from the existing form. A failure leaves its inputs intact and lets the owner retry or cancel; the Companion keeps the same authorization request pending without automatically resending it. Only success replaces the form with the sharing result.
+
 ### Companion
 
 The TypeScript Companion runs locally with the Node runtime available in Codex Desktop. While Relay credentials exist, the app keeps it running and restarts it after an unexpected exit. It maintains the authenticated Relay connection, registers task capabilities supplied by the active Shuttle Plugin, calls the Codex host adapter, and proxies explicitly configured localhost services.
 
 Codex-specific host details remain inside this adapter. Other packages use Shuttle's typed local protocol and do not depend on Codex bundle layout.
+
+Companion restarts wait for the old process to exit. A second instance cannot replace a live Unix socket; only an unreachable stale socket is reclaimed. Packaging launch checks run without loading credentials, starting the Companion, or checking for updates.
 
 ### Relay
 
@@ -60,11 +68,13 @@ The packaged Plugin contains the Shuttle MCP runtime and collaboration Skill. It
 2. The owner invokes `share_thread` from that task.
 3. The macOS app presents an authorization window and collects the owner-approved permission, recipient or link, expiration, and optional services.
 4. The Companion creates task metadata, grants, and invitations through the Relay.
-5. A collaborator accepts the invitation and receives an exact `shuttle://shared/<id>` reference.
+5. Email recipients have access immediately after signing in with a verified matching email; unrestricted-link recipients claim access once. Both use the same sharing URL and receive an exact `shuttle://shared/<id>` reference.
 6. A read or message request reaches the Relay, which checks the current session and grant before routing it to the owner's online Companion.
 7. The Companion performs the task operation locally and returns the result synchronously.
 
 The Relay has no path for discovering an unshared local task. A nonexistent task is not created by sharing or message delivery.
+
+Each task has one canonical invitation. Email grants store the normalized address, with an optional account ID, so inviting a new email does not create an account. The shared task stores the authorization deadline; invitations cannot extend it when claimed. Single-use claims use a conditional database update so only one account can claim the link.
 
 ## Preview flow
 
@@ -73,6 +83,8 @@ A preview service belongs to an existing task share and records its display name
 For HTTP and SSE, the Relay forwards request and response streams over the live device connection. WebSocket traffic remains bidirectional and preserves the subprotocol and close semantics required by development servers. Root-relative HMR requests are associated with the preview that opened the browser session.
 
 Every new request rechecks the task grant. Revoking preview access also closes active preview connections.
+
+Preview sessions cannot outlive the share authorization. Existing SSE chunks and WebSocket messages are checked before forwarding and blocked once the deadline is reached, including traffic on connections opened before expiry.
 
 ## Stored data
 

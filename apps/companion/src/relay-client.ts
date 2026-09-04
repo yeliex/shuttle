@@ -1,12 +1,18 @@
+export interface ThreadInviteOptions {
+    emails: string[];
+    expiresInHours: number | null;
+    permission: 'message' | 'read';
+    canPreview: boolean;
+    singleUse: boolean;
+}
+
 export interface RelayApi {
+    acceptInvite(inviteURL: string): Promise<unknown>;
     createPreviewService(name: string, localURL: string, sharedThreadId: string): Promise<unknown>;
     createSharedThread(codexThreadId: string, title?: string): Promise<unknown>;
     createThreadInvite(
         sharedThreadId: string,
-        email: string | undefined,
-        expiresInHours: number,
-        permission: 'message' | 'read',
-        canPreview: boolean,
+        options: ThreadInviteOptions,
     ): Promise<unknown>;
     deleteSharedThread(sharedThreadId: string): Promise<void>;
     deletePreviewService(previewServiceId: string): Promise<void>;
@@ -69,15 +75,40 @@ export class RelayClient implements RelayApi {
 
     async createThreadInvite(
         sharedThreadId: string,
-        email: string | undefined,
-        expiresInHours: number,
-        permission: 'message' | 'read',
-        canPreview: boolean,
+        options: ThreadInviteOptions,
     ): Promise<unknown> {
         return this.request(`/api/shared-threads/${encodeURIComponent(sharedThreadId)}/invites`, {
             method: 'POST',
-            body: JSON.stringify({ canPreview, email, expiresInHours, permission }),
+            body: JSON.stringify(options),
         });
+    }
+
+    searchRecipients(query: string): Promise<unknown> {
+        return this.request(`/api/shared-threads/recipients?q=${encodeURIComponent(query)}`);
+    }
+
+    async acceptInvite(inviteURL: string): Promise<unknown> {
+        let url: URL;
+        try {
+            url = new URL(inviteURL);
+        } catch {
+            throw new Error('Provide a complete Shuttle invitation link');
+        }
+        if (url.origin !== new URL(this.baseURL).origin) {
+            throw new Error('This invitation belongs to another Relay. Select that Relay and sign in through Shuttle setup first.');
+        }
+        if (url.username || url.password || !/^\/app\/invite\/?$/u.test(url.pathname)
+            || !/^#shuttle_invite_[A-Za-z0-9_-]{43}$/u.test(url.hash)) {
+            throw new Error('The Shuttle invitation link is invalid or missing its code');
+        }
+        // 只向已配置的 Relay 发送 code，绝不跟随分享 URL 将设备凭据发往其他站点。
+        const result = await this.request('/api/invites/accept', {
+            method: 'POST', body: JSON.stringify({ token: url.hash.slice(1) }),
+        });
+        const sharedThreadId = result && typeof result === 'object' && 'sharedThreadId' in result
+            ? result.sharedThreadId : undefined;
+        if (typeof sharedThreadId !== 'string' || !sharedThreadId) throw new Error('Relay did not return a shared task ID');
+        return { sharedThreadId, deeplink: `shuttle://shared/${sharedThreadId}` };
     }
 
     async deleteSharedThread(sharedThreadId: string): Promise<void> {

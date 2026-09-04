@@ -4,7 +4,6 @@ import {
     createSecret,
     hashSecret,
     readJsonObject,
-    readOptionalEmail,
     readOptionalString,
     readPermission,
     readRequiredString,
@@ -12,6 +11,7 @@ import {
 import type { RelayDatabase } from '../database.js';
 import { createInviteEmailContent } from '../mail.js';
 import type { RelayHonoEnvironment } from '../runtime.js';
+import { activeShare, grantAudience } from '../share-access.js';
 
 interface ThreadAccess {
     canPreview?: boolean;
@@ -22,6 +22,7 @@ interface ThreadAccess {
     ownerName: string;
     permission?: string;
     title?: string | null;
+    expiresAt?: Date | null;
 }
 
 const getThreadAccess = async (
@@ -29,6 +30,7 @@ const getThreadAccess = async (
     sharedThreadId: string,
     userId: string,
 ): Promise<ThreadAccess | undefined> => {
+    const audience = await grantAudience(database, userId);
     const thread = await database.sharedThread.findUnique({
         where: { id: sharedThreadId },
         select: {
@@ -36,10 +38,11 @@ const getThreadAccess = async (
             deviceId: true,
             ownerId: true,
             title: true,
+            expiresAt: true,
             owner: { select: { name: true } },
             device: { select: { revokedAt: true } },
             grants: {
-                where: { userId },
+                where: audience,
                 select: { canPreview: true, permission: true },
                 take: 1,
             },
@@ -56,16 +59,18 @@ const getThreadAccess = async (
             ownerName: thread.owner.name,
             permission: thread.grants[0]?.permission,
             title: thread.title,
+            expiresAt: thread.expiresAt,
         }
         : undefined;
 };
 
 const canRead = (access: ThreadAccess, userId: string): boolean => (
-    access.ownerId === userId || access.permission === 'read' || access.permission === 'message'
+    access.ownerId === userId || ((!access.expiresAt || access.expiresAt > new Date())
+        && (access.permission === 'read' || access.permission === 'message'))
 );
 
 const canMessage = (access: ThreadAccess, userId: string): boolean => (
-    access.ownerId === userId || access.permission === 'message'
+    access.ownerId === userId || ((!access.expiresAt || access.expiresAt > new Date()) && access.permission === 'message')
 );
 
 const closeThreadPreviews = async (
@@ -85,11 +90,12 @@ export const threads = new Hono<RelayHonoEnvironment>();
 
 threads.get('/', async (context) => {
     const userId = context.var.principal.userId;
+    const audience = await grantAudience(context.var.runtime.database, userId);
     const rows = await context.var.runtime.database.sharedThread.findMany({
         where: {
             OR: [
                 { ownerId: userId },
-                { grants: { some: { userId } } },
+                { AND: [activeShare(), { grants: { some: audience } }] },
             ],
         },
         orderBy: { updatedAt: 'desc' },
@@ -103,7 +109,7 @@ threads.get('/', async (context) => {
             device: { select: { name: true } },
             owner: { select: { image: true, name: true } },
             grants: {
-                where: { userId },
+                where: audience,
                 select: { canPreview: true, permission: true },
             },
             previewServices: {
@@ -135,6 +141,23 @@ threads.get('/', async (context) => {
             };
         }),
     });
+});
+
+threads.get('/recipients', async (context) => {
+    const query = context.req.query('q')?.trim() ?? '';
+    if (query.length < 2) return context.json({ users: [] });
+    const users = await context.var.runtime.database.user.findMany({
+        where: {
+            disabledAt: null,
+            emailVerified: true,
+            email: { contains: query.toLowerCase() },
+            id: { not: context.var.principal.userId },
+        },
+        select: { email: true, name: true },
+        orderBy: { email: 'asc' },
+        take: 10,
+    });
+    return context.json({ users });
 });
 
 threads.post('/', async (context) => {
@@ -202,6 +225,7 @@ threads.get('/:sharedThreadId', async (context) => {
             title: true,
             createdAt: true,
             updatedAt: true,
+            expiresAt: true,
             device: { select: { name: true } },
             owner: { select: { email: true, image: true, name: true } },
             previewServices: {
@@ -219,6 +243,8 @@ threads.get('/:sharedThreadId', async (context) => {
                 where: { sharedThreadId },
                 orderBy: { createdAt: 'asc' },
                 select: {
+                    id: true,
+                    email: true,
                     canPreview: true,
                     permission: true,
                     updatedAt: true,
@@ -235,7 +261,8 @@ threads.get('/:sharedThreadId', async (context) => {
                     expiresAt: true,
                     id: true,
                     permission: true,
-                    recipientEmail: true,
+                    restricted: true,
+                    singleUse: true,
                     token: true,
                 },
                 take: 20,
@@ -294,7 +321,7 @@ threads.delete('/:sharedThreadId', async (context) => {
         : context.body(null, 204);
 });
 
-threads.put('/:sharedThreadId/grants/:userId', async (context) => {
+threads.put('/:sharedThreadId/grants/:grantId', async (context) => {
     const database = context.var.runtime.database;
     const sharedThreadId = context.req.param('sharedThreadId');
     const ownerId = context.var.principal.userId;
@@ -303,36 +330,24 @@ threads.put('/:sharedThreadId/grants/:userId', async (context) => {
         return context.json({ error: 'Shared thread not found' }, 404);
     }
 
-    const targetUserId = context.req.param('userId');
-    if (targetUserId === ownerId) {
-        return context.json({ error: 'The owner already has full access' }, 409);
-    }
-
     const body = await readJsonObject(context.req.raw);
     const permission = readPermission(body);
     if (body.canPreview !== undefined && typeof body.canPreview !== 'boolean') {
         return context.json({ error: 'canPreview must be a boolean' }, 400);
     }
     const canPreview = body.canPreview === true;
-    const target = await database.user.findUnique({
-        where: { id: targetUserId },
+    const target = await database.shareGrant.findFirst({
+        where: { id: context.req.param('grantId'), sharedThreadId },
         select: { id: true },
     });
     if (!target) {
-        return context.json({ error: 'User not found' }, 404);
+        return context.json({ error: 'Grant not found' }, 404);
     }
 
-    const grant = await database.shareGrant.upsert({
-        where: { sharedThreadId_userId: { sharedThreadId, userId: targetUserId } },
-        create: {
-            id: crypto.randomUUID(),
-            canPreview,
-            permission,
-            sharedThreadId,
-            userId: targetUserId,
-        },
-        update: { canPreview, permission },
-        select: { canPreview: true, userId: true, permission: true, updatedAt: true },
+    const grant = await database.shareGrant.update({
+        where: { id: target.id },
+        data: { canPreview, permission },
+        select: { id: true, canPreview: true, permission: true, updatedAt: true },
     });
 
     if (!canPreview) {
@@ -344,10 +359,11 @@ threads.put('/:sharedThreadId/grants/:userId', async (context) => {
 
 threads.delete('/:sharedThreadId/grants/me', async (context) => {
     const sharedThreadId = context.req.param('sharedThreadId');
+    const audience = await grantAudience(context.var.runtime.database, context.var.principal.userId);
     const result = await context.var.runtime.database.shareGrant.deleteMany({
         where: {
             sharedThreadId,
-            userId: context.var.principal.userId,
+            ...audience,
         },
     });
 
@@ -358,7 +374,7 @@ threads.delete('/:sharedThreadId/grants/me', async (context) => {
     return context.body(null, 204);
 });
 
-threads.delete('/:sharedThreadId/grants/:userId', async (context) => {
+threads.delete('/:sharedThreadId/grants/:grantId', async (context) => {
     const database = context.var.runtime.database;
     const sharedThreadId = context.req.param('sharedThreadId');
     const ownerId = context.var.principal.userId;
@@ -368,7 +384,7 @@ threads.delete('/:sharedThreadId/grants/:userId', async (context) => {
     }
 
     await database.shareGrant.deleteMany({
-        where: { sharedThreadId, userId: context.req.param('userId') },
+        where: { sharedThreadId, id: context.req.param('grantId') },
     });
     await closeThreadPreviews(context, sharedThreadId);
     return context.body(null, 204);
@@ -384,63 +400,81 @@ threads.post('/:sharedThreadId/invites', async (context) => {
     }
 
     const body = await readJsonObject(context.req.raw);
-    const recipient = readOptionalEmail(body, 'email');
+    if (!Array.isArray(body.emails) || body.emails.length > 50
+        || body.emails.some((email) => typeof email !== 'string'
+            || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email.trim()))) {
+        return context.json({ error: 'emails must contain at most 50 valid email addresses' }, 400);
+    }
+    const emails = [...new Set((body.emails as string[]).map((email) => email.trim().toLowerCase()))];
     const permission = readPermission(body);
-    if (body.canPreview !== undefined && typeof body.canPreview !== 'boolean') {
-        return context.json({ error: 'canPreview must be a boolean' }, 400);
+    if (typeof body.canPreview !== 'boolean' || typeof body.singleUse !== 'boolean') {
+        return context.json({ error: 'canPreview and singleUse must be booleans' }, 400);
     }
-    const canPreview = body.canPreview === true;
-    const expiresInHours = body.expiresInHours === undefined ? 24 : body.expiresInHours;
-    if (typeof expiresInHours !== 'number' || expiresInHours <= 0 || expiresInHours > 24 * 30) {
-        return context.json({ error: 'expiresInHours must be greater than 0 and at most 720' }, 400);
+    const expiresInHours = body.expiresInHours;
+    if (expiresInHours !== null && (typeof expiresInHours !== 'number' || ![24, 168, 720].includes(expiresInHours))) {
+        return context.json({ error: 'expiresInHours must be 24, 168, 720, or null' }, 400);
     }
-    const token = createSecret('shuttle_invite');
-    const invite = await database.shareInvite.create({
-        data: {
-            id: crypto.randomUUID(),
-            canPreview,
-            expiresAt: new Date(Date.now() + expiresInHours * 60 * 60 * 1_000),
-            permission,
-            recipientEmail: recipient?.toLowerCase(),
-            sharedThreadId,
-            token: recipient ? null : token,
-            tokenHash: await hashSecret(token),
+    const expiresAt = expiresInHours === null ? null : new Date(Date.now() + Number(expiresInHours) * 3_600_000);
+    const canPreview = body.canPreview;
+    const restricted = emails.length > 0;
+    const singleUse = !restricted && body.singleUse;
+    const sendEmail = context.var.runtime.sendEmail;
+    if (restricted && !sendEmail) return context.json({ error: 'Invitation email delivery is not configured' }, 503);
+
+    // 一个分享始终使用同一链接；重新配置先关闭旧授权，避免中途暴露旧权限。
+    await database.sharedThread.update({ where: { id: sharedThreadId }, data: { expiresAt: new Date(0) } });
+    await closeThreadPreviews(context, sharedThreadId);
+    const current = await database.shareInvite.findUnique({ where: { id: sharedThreadId }, select: { token: true, singleUse: true } });
+    const token = current?.token ?? createSecret('shuttle_invite');
+    await database.shareInvite.deleteMany({ where: { sharedThreadId, id: { not: sharedThreadId } } });
+    if (restricted) {
+        await database.shareGrant.deleteMany({ where: { sharedThreadId, email: { notIn: emails } } });
+    }
+    await database.shareGrant.updateMany({ where: { sharedThreadId }, data: { canPreview, permission } });
+    const invite = await database.shareInvite.upsert({
+        where: { id: sharedThreadId },
+        create: {
+            id: sharedThreadId, sharedThreadId, token, tokenHash: await hashSecret(token),
+            canPreview, permission, restricted, singleUse, expiresAt,
+        },
+        update: {
+            canPreview, permission, restricted, singleUse, expiresAt,
+            ...(!singleUse || !current?.singleUse ? { acceptedAt: null, acceptedById: null } : {}),
         },
         select: { canPreview: true, id: true, permission: true, expiresAt: true },
     });
-
+    for (const email of emails) {
+        const user = await database.user.findUnique({ where: { email }, select: { id: true, emailVerified: true } });
+        await database.shareGrant.upsert({
+            where: { sharedThreadId_email: { sharedThreadId, email } },
+            create: {
+                id: crypto.randomUUID(), sharedThreadId, email,
+                userId: user?.emailVerified ? user.id : null, permission, canPreview,
+            },
+            update: { canPreview, permission, userId: user?.emailVerified ? user.id : null },
+        });
+    }
+    await database.sharedThread.update({ where: { id: sharedThreadId }, data: { expiresAt } });
     const inviteURL = new URL('/app/invite', context.var.runtime.baseURL);
     inviteURL.hash = token;
-    if (!recipient) {
-        return context.json({ emailDelivery: 'not-requested', invite, inviteURL: inviteURL.toString(), token }, 201);
+    const failedEmails: string[] = [];
+    if (sendEmail) {
+        for (const recipient of emails) {
+            try {
+                const content = createInviteEmailContent({
+                    expiresAt, inviteURL: inviteURL.toString(), ownerName: access.ownerName,
+                    canPreview, permission, recipient, resourceTitle: access.title ?? undefined,
+                });
+                await sendEmail({ ...content, recipient });
+            } catch {
+                failedEmails.push(recipient);
+            }
+        }
     }
-    const sendEmail = context.var.runtime.sendEmail;
-    if (!sendEmail) {
-        return context.json({ emailDelivery: 'not-configured', invite, inviteURL: inviteURL.toString(), token }, 201);
-    }
-
-    try {
-        const content = createInviteEmailContent({
-            expiresAt: invite.expiresAt,
-            inviteURL: inviteURL.toString(),
-            ownerName: access.ownerName,
-            canPreview,
-            permission,
-            recipient,
-            resourceTitle: access.title ?? undefined,
-        });
-        await sendEmail({ ...content, recipient });
-        return context.json({ emailDelivery: 'sent', invite, inviteURL: inviteURL.toString(), token }, 201);
-    } catch (error) {
-        console.error('Failed to send invitation email', error);
-        return context.json({
-            emailDelivery: 'failed',
-            error: 'Invitation created, but email delivery failed',
-            invite,
-            inviteURL: inviteURL.toString(),
-            token,
-        }, 201);
-    }
+    return context.json({
+        emailDelivery: !restricted ? 'not-requested' : failedEmails.length ? 'failed' : 'sent',
+        failedEmails, invite, inviteURL: inviteURL.toString(), token,
+    }, 201);
 });
 
 threads.delete('/:sharedThreadId/invites/:inviteId', async (context) => {
@@ -494,128 +528,94 @@ invites.post('/inspect', async (context) => {
     if (principal.kind !== 'session') {
         return context.json({ error: 'A browser session is required to inspect an invite' }, 403);
     }
-
     const database = context.var.runtime.database;
     const body = await readJsonObject(context.req.raw);
     const token = readRequiredString(body, 'token', 200);
+    const audience = await grantAudience(database, principal.userId);
     const invite = await database.shareInvite.findUnique({
         where: { tokenHash: await hashSecret(token) },
-        select: {
-            acceptedAt: true,
-            canPreview: true,
-            expiresAt: true,
-            permission: true,
-            recipientEmail: true,
+        include: {
             sharedThread: {
                 select: {
-                    id: true,
-                    ownerId: true,
-                    title: true,
+                    id: true, ownerId: true, title: true, expiresAt: true,
                     owner: { select: { image: true, name: true } },
+                    grants: { where: audience, take: 1 },
                 },
             },
         },
     });
-    if (!invite || invite.acceptedAt || invite.expiresAt <= new Date()) {
-        return context.json({ error: 'Invite is invalid or expired' }, 404);
+    if (!invite || (invite.sharedThread.expiresAt && invite.sharedThread.expiresAt <= new Date())
+        || (invite.expiresAt && invite.expiresAt <= new Date())) {
+        return context.json({ error: 'Share authorization is invalid or expired' }, 404);
     }
-    if (invite.sharedThread.ownerId === principal.userId) {
-        return context.json({ error: 'You already own this shared task' }, 409);
+    const grant = invite.sharedThread.grants[0];
+    const hasAccess = Boolean(grant) || invite.sharedThread.ownerId === principal.userId;
+    if (!hasAccess && (invite.restricted || (invite.singleUse && (invite.acceptedAt
+        || (invite.acceptedById && invite.acceptedById !== principal.userId))))) {
+        return context.json({ error: 'This account does not have access to this share' }, 403);
     }
-    if (invite.recipientEmail) {
-        const user = await database.user.findUnique({
-            where: { id: principal.userId },
-            select: { email: true },
-        });
-        if (!user || user.email.toLowerCase() !== invite.recipientEmail) {
-            return context.json({ error: 'Invite is intended for a different account' }, 403);
-        }
-    }
-
     return context.json({
         invite: {
-            expiresAt: invite.expiresAt,
-            canPreview: invite.canPreview,
-            permission: invite.permission,
-            recipientEmailBound: invite.recipientEmail !== null,
-            sharedThread: {
-                id: invite.sharedThread.id,
-                owner: invite.sharedThread.owner,
-                title: invite.sharedThread.title,
-            },
+            expiresAt: invite.sharedThread.expiresAt,
+            canPreview: grant?.canPreview ?? invite.canPreview,
+            permission: grant?.permission ?? invite.permission,
+            recipientEmailBound: invite.restricted,
+            singleUse: invite.singleUse,
+            hasAccess,
+            sharedThread: { id: invite.sharedThread.id, owner: invite.sharedThread.owner, title: invite.sharedThread.title },
         },
     });
 });
 
 invites.post('/accept', async (context) => {
     const principal = context.var.principal;
-    if (principal.kind !== 'session') {
-        return context.json({ error: 'A browser session is required to accept an invite' }, 403);
-    }
-
+    // 浏览器和 Companion 都代表经过认证的用户，沿用同一套邮箱、有效期和单次领取校验。
     const database = context.var.runtime.database;
     const body = await readJsonObject(context.req.raw);
     const token = readRequiredString(body, 'token', 200);
+    const audience = await grantAudience(database, principal.userId);
     const invite = await database.shareInvite.findUnique({
         where: { tokenHash: await hashSecret(token) },
-        select: {
-            id: true,
-            canPreview: true,
-            sharedThreadId: true,
-            permission: true,
-            recipientEmail: true,
-            expiresAt: true,
-            acceptedAt: true,
-            sharedThread: { select: { ownerId: true } },
-        },
+        include: { sharedThread: { select: { ownerId: true, expiresAt: true, grants: { where: audience, take: 1 } } } },
     });
-    if (!invite || invite.acceptedAt || invite.expiresAt <= new Date()) {
-        return context.json({ error: 'Invite is invalid or expired' }, 404);
+    if (!invite || (invite.sharedThread.expiresAt && invite.sharedThread.expiresAt <= new Date())
+        || (invite.expiresAt && invite.expiresAt <= new Date())) {
+        return context.json({ error: 'Share authorization is invalid or expired' }, 404);
     }
-    if (invite.sharedThread.ownerId === principal.userId) {
-        return context.json({ error: 'You already own this shared task' }, 409);
+    if (invite.sharedThread.ownerId === principal.userId || invite.sharedThread.grants.length) {
+        return context.json({ sharedThreadId: invite.sharedThreadId });
     }
-    if (invite.recipientEmail) {
-        const user = await database.user.findUnique({
-            where: { id: principal.userId },
-            select: { email: true },
+    if (invite.restricted) {
+        return context.json({ error: 'This account does not have access to this share' }, 403);
+    }
+    const user = await database.user.findUnique({
+        where: { id: principal.userId }, select: { email: true, emailVerified: true },
+    });
+    if (!user?.emailVerified) return context.json({ error: 'Verify your email before joining a share' }, 403);
+    if (invite.singleUse) {
+        // 只在领取时原子占用；同一账户可重试，其他账户不能同时领取。
+        const claimed = await database.shareInvite.updateMany({
+            where: {
+                id: invite.id, restricted: false, singleUse: true,
+                sharedThread: activeShare(),
+                acceptedAt: null,
+                OR: [{ acceptedById: null }, { acceptedById: principal.userId }],
+            },
+            data: { acceptedById: principal.userId },
         });
-        if (!user || user.email.toLowerCase() !== invite.recipientEmail) {
-            return context.json({ error: 'Invite is intended for a different account' }, 403);
-        }
+        if (!claimed.count) return context.json({ error: 'This link has already been used or expired' }, 409);
     }
-
-    const currentGrant = await database.shareGrant.findUnique({
-        where: {
-            sharedThreadId_userId: {
-                sharedThreadId: invite.sharedThreadId,
-                userId: principal.userId,
-            },
-        },
-        select: { canPreview: true, permission: true },
-    });
-    const permission = currentGrant?.permission === 'message' ? 'message' : invite.permission;
-    const canPreview = currentGrant?.canPreview === true || invite.canPreview;
     await database.shareGrant.upsert({
-        where: {
-            sharedThreadId_userId: {
-                sharedThreadId: invite.sharedThreadId,
-                userId: principal.userId,
-            },
-        },
+        where: { sharedThreadId_email: { sharedThreadId: invite.sharedThreadId, email: user.email.toLowerCase() } },
         create: {
-            id: crypto.randomUUID(),
-            canPreview,
-            permission,
-            sharedThreadId: invite.sharedThreadId,
-            userId: principal.userId,
+            id: crypto.randomUUID(), sharedThreadId: invite.sharedThreadId,
+            userId: principal.userId, email: user.email.toLowerCase(),
+            permission: invite.permission, canPreview: invite.canPreview,
         },
-        update: { canPreview, permission },
+        update: { userId: principal.userId, permission: invite.permission, canPreview: invite.canPreview },
     });
-    await database.shareInvite.update({
-        where: { id: invite.id },
-        data: { acceptedAt: new Date(), acceptedById: principal.userId },
-    });
-
+    if (invite.singleUse) {
+        await database.shareInvite.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
+    }
     return context.json({ sharedThreadId: invite.sharedThreadId });
 });

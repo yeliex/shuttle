@@ -11,6 +11,7 @@ final class OnboardingController {
     private(set) var relayErrorMessage: String?
     private(set) var pluginReady = false
     private(set) var selectedRelayURL: URL
+    private let window = UtilityWindowPresenter()
 
     private let companion: CompanionController
     private let pluginInstaller: CodexPluginInstaller
@@ -37,13 +38,17 @@ final class OnboardingController {
         companion.isConnected
     }
 
+    var companionIsReady: Bool { companion.isReady }
+
+    var companionStatusText: String { companion.statusText }
+
     func checkOnLaunch() async -> Bool {
         guard !didCheckOnLaunch else { return false }
         didCheckOnLaunch = true
         prepareForPresentation()
         await refreshPluginStatus()
 
-        return !pluginReady || !companion.isConnected
+        return !pluginReady || !companion.isReady
     }
 
     func prepareForPresentation() {
@@ -53,6 +58,15 @@ final class OnboardingController {
         pluginErrorMessage = nil
         relayErrorMessage = nil
     }
+
+    func present() {
+        prepareForPresentation()
+        window.present(title: "Set up Shuttle", onClose: {}) {
+            OnboardingView(controller: self)
+        }
+    }
+
+    func close() { window.close() }
 
     func refreshPluginStatus() async {
         guard !isCheckingPlugin, !isInstallingPlugin else { return }

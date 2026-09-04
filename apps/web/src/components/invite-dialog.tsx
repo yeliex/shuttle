@@ -24,14 +24,16 @@ import { ToggleGroup, ToggleGroupItem } from '@/ui/toggle-group';
 import type { SharePermission } from '@shuttle/contracts';
 import { CheckCircle2Icon, CopyIcon, LinkIcon, MailIcon, MonitorUpIcon, UserPlusIcon } from 'lucide-react';
 import { useState } from 'react';
+import useSWR from 'swr';
 import useSWRMutation from 'swr/mutation';
 
-import { createInvite, type CreateInviteResult } from '@/libs/api.ts';
+import { createInvite, searchRecipients, type CreateInviteResult } from '@/libs/api.ts';
 
 interface InviteValues {
     canPreview: boolean;
-    email?: string;
-    expiresInHours: number;
+    emails: string[];
+    expiresInHours: number | null;
+    singleUse: boolean;
     permission: SharePermission;
 }
 
@@ -48,6 +50,11 @@ export function InviteDialog({
 }) {
     const [open, setOpen] = useState(false);
     const [email, setEmail] = useState('');
+    const [recipientMode, setRecipientMode] = useState('link');
+    const [singleUse, setSingleUse] = useState(false);
+    const searchEmail = email.split(',').at(-1)?.trim() ?? '';
+    const recipients = useSWR(open && recipientMode === 'people' && searchEmail.length >= 2 ? ['share-recipients', searchEmail] : null,
+        ([, query]) => searchRecipients(query));
     const [canPreview, setCanPreview] = useState(false);
     const [expiresInHours, setExpiresInHours] = useState(24);
     const [permission, setPermission] = useState<SharePermission>('read');
@@ -68,12 +75,17 @@ export function InviteDialog({
         event.preventDefault();
         const invite = await trigger({
             canPreview,
-            email: email.trim() || undefined,
-            expiresInHours,
+            emails: recipientMode === 'people' ? email.split(',').map((value) => value.trim()).filter(Boolean) : [],
+            expiresInHours: expiresInHours === 0 ? null : expiresInHours,
+            singleUse: recipientMode === 'link' && singleUse,
             permission,
         });
         setResult(invite);
         onCreated();
+        if (recipientMode === 'link') {
+            await navigator.clipboard.writeText(invite.inviteURL);
+            toast.success('Share link copied');
+        }
     };
 
     const copyInvite = async () => {
@@ -102,7 +114,7 @@ export function InviteDialog({
 
                 {result ? (
                     <InviteResult
-                        emailBound={email.trim().length > 0}
+                        emailBound={recipientMode === 'people'}
                         result={result}
                         sharedThreadId={sharedThreadId}
                         onCopy={copyInvite}
@@ -111,11 +123,24 @@ export function InviteDialog({
                     <form id="invite-form" onSubmit={submit}>
                         <FieldGroup>
                             <Field>
-                                <FieldLabel htmlFor="invite-email">Email address (optional)</FieldLabel>
+                                <FieldLabel>Share with</FieldLabel>
+                                <Select value={recipientMode} onValueChange={setRecipientMode}>
+                                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="link">Anyone with this link</SelectItem>
+                                        <SelectItem value="people">Selected people</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+                            {recipientMode === 'people' ? <Field>
+                                <FieldLabel htmlFor="invite-email">Email addresses</FieldLabel>
                                 <InputGroup>
                                     <InputGroupInput
                                         id="invite-email"
                                         type="email"
+                                        multiple
+                                        required
+                                        list="share-recipient-options"
                                         placeholder="teammate@example.com"
                                         value={email}
                                         onChange={(event) => setEmail(event.target.value)}
@@ -124,10 +149,13 @@ export function InviteDialog({
                                         <MailIcon />
                                     </InputGroupAddon>
                                 </InputGroup>
+                                <datalist id="share-recipient-options">
+                                    {recipients.data?.users.map((user) => <option key={user.email} value={[...email.split(',').slice(0, -1), user.email].join(',')}>{user.name}</option>)}
+                                </datalist>
                                 <FieldDescription>
-                                    With an email, only that account can accept. Leave empty for a shareable link.
+                                    Separate emails with commas. Verified recipients get access immediately, without accepting an invitation.
                                 </FieldDescription>
-                            </Field>
+                            </Field> : <Toggle variant="outline" pressed={singleUse} onPressedChange={setSingleUse}>Link can only be claimed once</Toggle>}
 
                             <Field>
                                 <FieldLabel>Permission</FieldLabel>
@@ -163,7 +191,7 @@ export function InviteDialog({
                             )}
 
                             <Field>
-                                <FieldLabel>Link expires</FieldLabel>
+                                <FieldLabel>Access expires</FieldLabel>
                                 <Select
                                     value={String(expiresInHours)}
                                     onValueChange={(value) => setExpiresInHours(Number(value))}
@@ -175,6 +203,7 @@ export function InviteDialog({
                                         <SelectItem value="24">In 24 hours</SelectItem>
                                         <SelectItem value="168">In 7 days</SelectItem>
                                         <SelectItem value="720">In 30 days</SelectItem>
+                                        <SelectItem value="0">Never</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </Field>
@@ -189,7 +218,7 @@ export function InviteDialog({
                     ) : (
                         <Button form="invite-form" type="submit" disabled={isMutating}>
                             {isMutating && <Spinner />}
-                            Create invitation
+                            {recipientMode === 'link' ? 'Copy share link' : 'Send invitations'}
                         </Button>
                     )}
                 </DialogFooter>
@@ -212,10 +241,10 @@ function InviteResult({
     const delivery = {
         failed: ['Email could not be sent', 'The invitation is ready; copy the link below instead.'],
         'not-configured': ['Email is not configured', 'The invitation is ready; send the link manually.'],
-        'not-requested': ['Invitation link created', 'Anyone with this link can accept until it expires.'],
+        'not-requested': ['Share link created', 'Recipients must sign in. Any usage limit and authorization deadline apply to this share.'],
         sent: ['Invitation email sent', 'A copyable link is also available below.'],
     }[result.emailDelivery];
-    const usagePrompt = `Open and accept this Shuttle task invitation:
+    const usagePrompt = `Open this Shuttle shared task and sign in with your invited email:
 ${result.inviteURL}
 
 Then use the Shuttle skill in a new Codex task to read:

@@ -23,6 +23,7 @@ interface PreviewWebSocket {
     deviceId: string;
     deviceSocket: WSContext;
     previewServiceId: string;
+    expiresAt?: number;
 }
 
 const decodeBase64 = (value: string): Uint8Array<ArrayBuffer> => {
@@ -218,6 +219,7 @@ export class DeviceHub {
         protocols: string[],
         headers: [string, string][],
         browser: WSContext,
+        expiresAt?: number,
     ): string {
         const deviceSocket = this.connections.get(deviceId);
         if (!deviceSocket || deviceSocket.readyState !== 1) {
@@ -229,6 +231,7 @@ export class DeviceHub {
             deviceId,
             deviceSocket,
             previewServiceId,
+            expiresAt,
         });
         deviceSocket.send(JSON.stringify({
             headers,
@@ -243,6 +246,11 @@ export class DeviceHub {
     async forwardPreviewWebSocketData(id: string, value: WSMessageReceive): Promise<void> {
         const preview = this.previewWebSockets.get(id);
         if (!preview || preview.deviceSocket.readyState !== 1) {
+            return;
+        }
+        if (preview.expiresAt && preview.expiresAt <= Date.now()) {
+            this.closePreviewWebSocket(id, 4003, 'Share authorization expired');
+            preview.browser.close(4003, 'Share authorization expired');
             return;
         }
         if (typeof value === 'string') {
@@ -366,6 +374,11 @@ export class DeviceHub {
             reason?: unknown;
         },
     ): void {
+        if (preview.expiresAt && preview.expiresAt <= Date.now()) {
+            this.closePreviewWebSocket(id, 4003, 'Share authorization expired');
+            preview.browser.close(4003, 'Share authorization expired');
+            return;
+        }
         if (typeof message.error === 'string') {
             this.previewWebSockets.delete(id);
             preview.browser.close(1011, message.error.slice(0, 120));

@@ -2,10 +2,15 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 
 import { CompanionService } from '../src/companion-service.js';
-import type { RelayApi } from '../src/relay-client.js';
+import type { RelayApi, ThreadInviteOptions } from '../src/relay-client.js';
 
 class FakeRelay implements RelayApi {
     readonly calls: Array<{ name: string; values: unknown[] }> = [];
+
+    async acceptInvite(inviteURL: string): Promise<unknown> {
+        this.calls.push({ name: 'acceptInvite', values: [inviteURL] });
+        return { sharedThreadId: 'shared-1', deeplink: 'shuttle://shared/shared-1' };
+    }
 
     async createPreviewService(
         name: string,
@@ -18,14 +23,11 @@ class FakeRelay implements RelayApi {
 
     async createThreadInvite(
         sharedThreadId: string,
-        email: string | undefined,
-        expiresInHours: number,
-        permission: 'message' | 'read',
-        canPreview: boolean,
+        options: ThreadInviteOptions,
     ): Promise<unknown> {
         this.calls.push({
             name: 'createThreadInvite',
-            values: [sharedThreadId, email, expiresInHours, permission, canPreview],
+            values: [sharedThreadId, options],
         });
         return { inviteURL: 'https://shuttle.example/app/invite#token' };
     }
@@ -79,11 +81,11 @@ test('creates one task invitation with local service access', async () => {
     const relay = new FakeRelay();
     const service = new CompanionService(relay);
 
-    await service.createThreadInvite('shared-1', 'guest@example.com', 24, 'read', true);
+    await service.createThreadInvite('shared-1', { emails: ['guest@example.com', 'another@example.com'], expiresInHours: null, permission: 'read', canPreview: true, singleUse: false });
 
     assert.deepEqual(relay.calls, [{
         name: 'createThreadInvite',
-        values: ['shared-1', 'guest@example.com', 24, 'read', true],
+        values: ['shared-1', { emails: ['guest@example.com', 'another@example.com'], expiresInHours: null, permission: 'read', canPreview: true, singleUse: false }],
     }]);
 });
 

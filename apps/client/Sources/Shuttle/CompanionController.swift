@@ -36,6 +36,7 @@ final class CompanionController {
     }
 
     private(set) var status: Status
+    private(set) var isReady = false
 
     private var credentials: RelayCredentials?
     private let nodeURL: URL?
@@ -46,6 +47,16 @@ final class CompanionController {
     private var outputHandle: FileHandle?
     private var process: Process?
     private var restartTask: Task<Void, Never>?
+    private var shouldRun = false
+
+    private var socketPath: String {
+        let environment = ProcessInfo.processInfo.environment
+        if let path = environment["SHUTTLE_SOCKET_PATH"] { return path }
+        let directory = environment["SHUTTLE_DATA_DIR"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appending(path: "Shuttle")
+        return directory.appending(path: "companion.sock").path
+    }
 
     init(
         nodeURL: URL? = CodexRuntimeLocator.locateNode(),
@@ -87,7 +98,7 @@ final class CompanionController {
         case .stopped:
             "Companion stopped"
         case let .running(processIdentifier):
-            "Companion running (PID \(processIdentifier))"
+            isReady ? "Companion ready (PID \(processIdentifier))" : "Starting Companion…"
         }
     }
 
@@ -107,6 +118,7 @@ final class CompanionController {
     }
 
     func start() {
+        shouldRun = true
         restartTask?.cancel()
         restartTask = nil
         guard process == nil,
@@ -130,14 +142,15 @@ final class CompanionController {
         child.standardError = FileHandle.nullDevice
 
         do {
-            try child.run()
-            let processIdentifier = child.processIdentifier
             child.terminationHandler = { [weak self] terminatedProcess in
                 let exitCode = terminatedProcess.terminationStatus
+                let processIdentifier = terminatedProcess.processIdentifier
                 Task { @MainActor [weak self] in
                     self?.didTerminate(processIdentifier: processIdentifier, exitCode: exitCode)
                 }
             }
+            try child.run()
+            let processIdentifier = child.processIdentifier
             process = child
             inputHandle = input.fileHandleForWriting
             outputHandle = output.fileHandleForReading
@@ -145,6 +158,7 @@ final class CompanionController {
                 let data = handle.availableData
                 guard !data.isEmpty else { return }
                 Task { @MainActor [weak self] in
+                    guard self?.process?.processIdentifier == processIdentifier else { return }
                     self?.consumeOutput(data)
                 }
             }
@@ -155,10 +169,12 @@ final class CompanionController {
     }
 
     func stopImmediately() {
+        shouldRun = false
+        isReady = false
         restartTask?.cancel()
         restartTask = nil
         process?.terminate()
-        process = nil
+        // Keep the old process until termination; configure/recovery must not start over its socket.
         inputHandle = nil
         outputHandle?.readabilityHandler = nil
         outputHandle = nil
@@ -166,6 +182,14 @@ final class CompanionController {
         status = nodeURL == nil || scriptURL == nil
             ? status
             : credentials == nil ? .unavailable("Connect a Relay to start") : .stopped
+    }
+
+    func recoverIfNeeded() {
+        loadStoredCredentials()
+        guard credentials != nil else { return }
+        if isRunning && FileManager.default.fileExists(atPath: socketPath) { return }
+        stopImmediately()
+        start()
     }
 
     func configure(_ credentials: RelayCredentials) throws {
@@ -189,11 +213,12 @@ final class CompanionController {
         }
 
         process = nil
+        isReady = false
         inputHandle = nil
         outputHandle?.readabilityHandler = nil
         outputHandle = nil
         outputBuffer.removeAll(keepingCapacity: true)
-        guard nodeURL != nil, scriptURL != nil, credentials != nil else {
+        guard shouldRun, nodeURL != nil, scriptURL != nil, credentials != nil else {
             status = .stopped
             return
         }
@@ -216,7 +241,15 @@ final class CompanionController {
                   let event = try? JSONDecoder().decode(CompanionEvent.self, from: Data(line)) else {
                 continue
             }
-            if let request = event.authorizationRequest {
+            if event.type == "ready" {
+                isReady = true
+            } else if event.type == "recipients-result", event.query == authorizationPresenter.recipients.query {
+                authorizationPresenter.recipients.receive(query: event.query ?? "", users: event.users ?? [], error: event.error)
+            } else if let request = event.authorizationRequest {
+                authorizationPresenter.recipients.search = { [weak self] query in
+                    guard let data = try? JSONEncoder().encode(["method": "recipients.search", "query": query]) else { return }
+                    try? self?.inputHandle?.write(contentsOf: data + Data([0x0A]))
+                }
                 authorizationPresenter.present(request: request) { [weak self] decision in
                     self?.respond(to: request.id, decision: decision)
                 }
@@ -232,11 +265,15 @@ final class CompanionController {
     }
 
     private func respond(to id: String, decision: ShareAuthorizationDecision) {
+        guard let inputHandle else {
+            authorizationPresenter.complete(id: id, inviteURL: nil, sharedThreadId: nil, error: "Companion 尚未连接，请稍后重试。")
+            return
+        }
         do {
             let response = CompanionAuthorizationResponse(id: id, result: decision)
             var data = try JSONEncoder().encode(response)
             data.append(0x0A)
-            try inputHandle?.write(contentsOf: data)
+            try inputHandle.write(contentsOf: data)
         } catch {
             authorizationPresenter.complete(
                 id: id,

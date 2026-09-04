@@ -8,8 +8,6 @@ private enum OnboardingSettingState: Equatable {
 }
 
 struct OnboardingView: View {
-    @Environment(\.dismissWindow) private var dismissWindow
-
     let controller: OnboardingController
 
     var body: some View {
@@ -32,12 +30,7 @@ struct OnboardingView: View {
                     }
                     Spacer()
                 }
-                .overlay {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .gesture(WindowDragGesture())
-                        .allowsWindowActivationEvents()
-                }
+                .utilityWindowDragRegion()
 
                 VStack(spacing: 0) {
                     OnboardingSettingRow(
@@ -85,8 +78,11 @@ struct OnboardingView: View {
                 } else if controller.pluginReady
                     && controller.isSignedInToSelectedRelay {
                     Label(
-                        "Shuttle is ready. Open a new Codex task to load the plugin.",
-                        systemImage: "checkmark.circle.fill"
+                        controller.companionIsReady
+                            ? "Shuttle is ready. Open a new Codex task to load the plugin."
+                            : controller.companionStatusText,
+                        systemImage: controller.companionIsReady
+                            ? "checkmark.circle.fill" : "exclamationmark.circle"
                     )
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -109,7 +105,7 @@ struct OnboardingView: View {
                         if controller.pluginReady
                             && controller.isSignedInToSelectedRelay {
                             Button("Done") {
-                                dismissWindow(id: ShuttleWindow.onboarding)
+                                controller.close()
                             }
                             .keyboardShortcut(.defaultAction)
                         }
@@ -120,7 +116,7 @@ struct OnboardingView: View {
             .frame(width: 560)
 
             Button {
-                dismissWindow(id: ShuttleWindow.onboarding)
+                controller.close()
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
@@ -131,16 +127,7 @@ struct OnboardingView: View {
             .zIndex(1)
             .accessibilityLabel("Close setup")
         }
-        .background {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThickMaterial)
-                .gesture(WindowDragGesture())
-                .allowsWindowActivationEvents()
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(.primary.opacity(0.08))
-        }
+        .utilityWindowSurface(width: 560, padding: 0)
         .task {
             await controller.refreshPluginStatus()
         }

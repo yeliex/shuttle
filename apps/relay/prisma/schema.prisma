@@ -107,6 +107,7 @@ model SharedThread {
   deviceId          String
   codexThreadId     String
   title             String?
+  expiresAt         DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   owner             User             @relation("ThreadOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -124,15 +125,17 @@ model SharedThread {
 model ShareGrant {
   id             String       @id
   sharedThreadId String
-  userId         String
+  userId         String?
+  email          String
   permission     String
   canPreview     Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   sharedThread   SharedThread @relation(fields: [sharedThreadId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([sharedThreadId, userId])
+  @@unique([sharedThreadId, email])
   @@index([userId])
   @@map("share_grants")
 }
@@ -142,10 +145,11 @@ model ShareInvite {
   sharedThreadId String
   tokenHash      String       @unique
   token          String?
-  recipientEmail String?
+  restricted     Boolean      @default(false)
+  singleUse      Boolean      @default(false)
   permission     String
   canPreview     Boolean      @default(false)
-  expiresAt      DateTime
+  expiresAt      DateTime?
   acceptedAt     DateTime?
   acceptedById   String?
   createdAt      DateTime     @default(now())

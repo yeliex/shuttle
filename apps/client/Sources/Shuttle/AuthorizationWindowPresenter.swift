@@ -1,125 +1,105 @@
 import AppKit
 import SwiftUI
 
-private final class AuthorizationPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-}
-
 @MainActor
-final class AuthorizationWindowPresenter: NSObject, NSWindowDelegate {
+final class AuthorizationWindowPresenter {
     private var activeRequestID: String?
-    private var presentationScreen: NSScreen?
-    private var recipientEmail: String?
+    private var recipientEmails: [String] = []
     private var response: ((ShareAuthorizationDecision) -> Void)?
-    private var window: NSWindow?
+    private let window = UtilityWindowPresenter()
+    private var submission = ShareSubmission()
+    let recipients = ShareRecipients()
 
     func present(
         request: ShareAuthorizationRequest,
+        isPreview: Bool = false,
         response: @escaping (ShareAuthorizationDecision) -> Void
     ) {
         activeRequestID = request.id
+        recipientEmails = []
         self.response = response
-        let pointerLocation = NSEvent.mouseLocation
-        presentationScreen = NSScreen.screens.first {
-            NSMouseInRect(pointerLocation, $0.frame, false)
-        } ?? NSScreen.main
+        submission = ShareSubmission()
+        recipients.find("")
         show(ShareAuthorizationView(
             request: request,
-            onCancel: { [weak self] in
-                self?.respond(ShareAuthorizationDecision(
-                    approved: false,
-                    canPreview: false,
-                    email: nil,
-                    expiresInHours: 24,
-                    permission: .read
-                ))
-                self?.close()
-            },
+            recipients: recipients,
+            submission: submission,
+            onCancel: { [weak self] in self?.window.close() },
             onApprove: { [weak self] decision in
-                self?.recipientEmail = decision.email
-                self?.respond(decision)
-                self?.show(ShareAuthorizationProgressView(title: request.title))
+                guard let self, !submission.isSubmitting else { return }
+                submission.error = nil
+                submission.isSubmitting = true
+                recipientEmails = decision.emails
+                if isPreview {
+                    // 仅模拟结果；不触发 Companion，示例链接也不指向真实 Relay。
+                    Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(1))
+                        self?.complete(
+                            id: request.id,
+                            inviteURL: "https://shuttle.example/app/invite#preview-only",
+                            sharedThreadId: "00000000-0000-4000-8000-000000000000",
+                            error: nil
+                        )
+                    }
+                    return
+                }
+                self.response?(decision)
             }
         ))
     }
 
+    func presentPreview() {
+        recipients.search = { [weak self] query in
+            let users = [
+                ShareRecipientUser(email: "alex@example.com", name: "Alex"),
+                ShareRecipientUser(email: "maya@example.com", name: "Maya"),
+            ].filter { $0.email.contains(query.lowercased()) }
+            self?.recipients.receive(query: query, users: users, error: nil)
+        }
+        present(
+            request: ShareAuthorizationRequest(
+                id: "authorization-preview-" + UUID().uuidString,
+                services: [SharedLocalService(localURL: "http://localhost:3000", name: "Web preview")],
+                title: "Review the new onboarding experience"
+            ),
+            isPreview: true,
+            response: { _ in }
+        )
+    }
+
     func complete(id: String, inviteURL: String?, sharedThreadId: String?, error: String?) {
         guard activeRequestID == id else { return }
+        submission.isSubmitting = false
+        if let error {
+            submission.error = error
+            return
+        }
+        response = nil
+        if error == nil, recipientEmails.isEmpty, let inviteURL {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(inviteURL, forType: .string)
+        }
         show(ShareAuthorizationResultView(
             error: error,
             inviteURL: inviteURL,
-            sharedThreadId: recipientEmail == nil ? nil : sharedThreadId,
-            onDone: { [weak self] in self?.close() }
+            sharedThreadId: sharedThreadId,
+            onDone: { [weak self] in
+                self?.window.close()
+            }
         ))
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        guard response != nil else { return }
-        respond(ShareAuthorizationDecision(
-            approved: false,
-            canPreview: false,
-            email: nil,
-            expiresInHours: 24,
-            permission: .read
-        ))
-        reset()
-    }
-
-    private func respond(_ decision: ShareAuthorizationDecision) {
-        let currentResponse = response
-        response = nil
-        currentResponse?(decision)
     }
 
     private func show<Content: View>(_ content: Content) {
-        let hostingController = NSHostingController(rootView: content)
-        hostingController.view.layoutSubtreeIfNeeded()
-        let contentSize = hostingController.view.fittingSize
-        if let window {
-            window.contentViewController = hostingController
-            window.setContentSize(contentSize)
-        } else {
-            let window = AuthorizationPanel(
-                contentRect: NSRect(origin: .zero, size: contentSize),
-                styleMask: [.borderless],
-                backing: .buffered,
-                defer: false
-            )
-            window.title = "Shuttle authorization"
-            window.contentViewController = hostingController
-            window.backgroundColor = .clear
-            window.isOpaque = false
-            window.hasShadow = true
-            window.level = .modalPanel
-            window.collectionBehavior = [.moveToActiveSpace, .transient]
-            window.isMovableByWindowBackground = true
-            window.animationBehavior = .utilityWindow
-            window.isReleasedWhenClosed = false
-            window.delegate = self
-            self.window = window
-        }
-        if let visibleFrame = presentationScreen?.visibleFrame {
-            let frame = window?.frame ?? NSRect(origin: .zero, size: contentSize)
-            window?.setFrameOrigin(NSPoint(
-                x: visibleFrame.midX - frame.width / 2,
-                y: visibleFrame.midY - frame.height / 2
+        window.present(title: "Shuttle authorization", onClose: { [weak self] in
+            guard let self else { return }
+            let completion = response
+            response = nil
+            activeRequestID = nil
+            recipientEmails = []
+            recipients.find("")
+            completion?(ShareAuthorizationDecision(
+                approved: false, canPreview: false, emails: [], expiresInHours: 24, permission: .read
             ))
-        }
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
-    }
-
-    private func close() {
-        window?.close()
-        reset()
-    }
-
-    private func reset() {
-        activeRequestID = nil
-        presentationScreen = nil
-        recipientEmail = nil
-        response = nil
-        window = nil
+        }) { content }
     }
 }

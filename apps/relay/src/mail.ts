@@ -20,7 +20,7 @@ export type SmtpConfiguration = SmtpBaseConfiguration & ({
 
 export interface InviteEmail {
     canPreview: boolean;
-    expiresAt: Date;
+    expiresAt: Date | null;
     inviteURL: string;
     ownerName: string;
     permission: 'message' | 'read';
@@ -131,14 +131,14 @@ export const createInviteEmailContent = (invite: InviteEmail): {
         ? `${taskPermission}, and open its shared local services`
         : taskPermission;
     const subject = `${invite.ownerName} invited you to a Shuttle task`;
-    const expiration = invite.expiresAt.toISOString();
+    const expiration = invite.expiresAt ? `Access expires at ${invite.expiresAt.toISOString()}.` : 'Access remains available until the owner revokes it.';
     const text = [
-        `${invite.ownerName} invited you to ${resource} on Shuttle.`,
+        `${invite.ownerName} shared ${resource} with you on Shuttle. Sign in with ${invite.recipient} to access it; no invitation acceptance is required.`,
         `You can ${permission}.`,
         '',
         invite.inviteURL,
         '',
-        `This invitation expires at ${expiration}.`,
+        expiration,
     ].join('\n');
 
     return {
@@ -152,8 +152,9 @@ export const createInviteEmailContent = (invite: InviteEmail): {
       <div style="font-size:14px;font-weight:700;letter-spacing:.08em;color:#6d6c68">SHUTTLE</div>
       <h1 style="margin:20px 0 12px;font-size:24px;line-height:1.3">You’ve been invited</h1>
       <p style="margin:0 0 24px;line-height:1.6;color:#555450">${escapeHtml(invite.ownerName)} invited you to ${escapeHtml(resource)}. You can ${permission}.</p>
-      <a href="${escapeHtml(invite.inviteURL)}" style="display:inline-block;border-radius:9px;background:#20201f;color:#ffffff;padding:11px 18px;text-decoration:none;font-weight:600">Open invitation</a>
-      <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#85837d">This invitation expires at ${escapeHtml(expiration)}.</p>
+      <p>Sign in with ${escapeHtml(invite.recipient)} to access this task. No invitation acceptance is required.</p>
+      <a href="${escapeHtml(invite.inviteURL)}" style="display:inline-block;border-radius:9px;background:#20201f;color:#ffffff;padding:11px 18px;text-decoration:none;font-weight:600">Open shared task</a>
+      <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#85837d">${escapeHtml(expiration)}</p>
     </div>
   </div>
 </body>

@@ -59,7 +59,10 @@ export default function Documentation() {
           <section id="collaborate" className="docs-section">
             <h2>Collaborate from Codex</h2>
             <h3>Share a task</h3>
-            <p>Ask Codex to share the current task through Shuttle, or invoke the Shuttle Skill with <code>/shuttle share</code>. The native authorization window lets you choose a specific email or an expiring link, grant read or message access, and decide whether the collaborator may open included previews.</p>
+            <p>Ask Codex to share the current task through Shuttle, or invoke the Shuttle Skill with <code>/shuttle share</code>. The native authorization window lets you share one link with anyone or restrict it to multiple email addresses, grant read or message access, and include local previews.</p>
+            <p>Email recipients have access after signing in with a verified matching address, without an acceptance step. Unrestricted links can optionally be limited to one successful recipient; opening a link does not consume it.</p>
+            <p>Choose an authorization lifetime of 1, 7, or 30 days, or no expiration. Once it expires, existing recipients can no longer read or message the task or access its previews.</p>
+            <p>To join directly from Codex, give the Shuttle Skill the complete invitation link and ask it to accept. The <code>accept_invite</code> tool uses your signed-in Shuttle account and returns the task deeplink. Your app must be connected to the same Relay as the invitation.</p>
 
             <h3>Read or message a shared task</h3>
             <p>Copy the collaboration prompt from Shuttle and give it to Codex in your own task. It includes an exact resource link:</p>

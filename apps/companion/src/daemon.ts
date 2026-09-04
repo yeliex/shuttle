@@ -1,6 +1,6 @@
 import { lstat, mkdir, unlink } from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
-import { createServer, type Socket } from 'node:net';
+import { connect, createServer, type Server, type Socket } from 'node:net';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { type RawData, WebSocket as LocalWebSocket } from 'ws';
@@ -30,24 +30,24 @@ const getString = (value: unknown, name: string): string => {
 interface AuthorizationDecision {
     approved: boolean;
     canPreview: boolean;
-    email?: string;
-    expiresInHours: number;
+    emails: string[];
+    expiresInHours: number | null;
+    singleUse: boolean;
     permission: 'message' | 'read';
 }
 
 const readAuthorizationDecision = (value: unknown): AuthorizationDecision => {
     const object = getObject(value);
     if (object.approved !== true) {
-        return { approved: false, canPreview: false, expiresInHours: 24, permission: 'read' };
+        return { approved: false, canPreview: false, emails: [], expiresInHours: 24, singleUse: false, permission: 'read' };
     }
-    const email = typeof object.email === 'string' && object.email.trim()
-        ? object.email.trim()
-        : undefined;
-    const expiresInHours = typeof object.expiresInHours === 'number'
-        ? object.expiresInHours
-        : 24;
-    if (expiresInHours <= 0 || expiresInHours > 720) {
-        throw new Error('Authorization expiration must be at most 720 hours');
+    if (!Array.isArray(object.emails) || object.emails.some((email) => typeof email !== 'string')) {
+        throw new Error('Authorization emails must be an array');
+    }
+    const emails = object.emails.map((email: string) => email.trim().toLowerCase());
+    const expiresInHours = object.expiresInHours === 0 ? null : object.expiresInHours;
+    if (expiresInHours !== null && (typeof expiresInHours !== 'number' || ![24, 168, 720].includes(expiresInHours))) {
+        throw new Error('Authorization expiration must be 1, 7, 30 days, or permanent');
     }
     if (object.permission !== 'read' && object.permission !== 'message') {
         throw new Error('Authorization permission is invalid');
@@ -55,7 +55,8 @@ const readAuthorizationDecision = (value: unknown): AuthorizationDecision => {
     return {
         approved: true,
         canPreview: object.canPreview === true,
-        email,
+        emails,
+        singleUse: object.singleUse === true,
         expiresInHours,
         permission: object.permission,
     };
@@ -91,17 +92,47 @@ const getCreatedResourceId = (value: unknown, resource: 'service' | 'thread'): s
     return id;
 };
 
-const cleanStaleSocket = async (path: string): Promise<void> => {
+export const listenOnCompanionSocket = async (server: Server, path: string): Promise<void> => {
+    const listen = () => new Promise<void>((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(path, () => {
+            server.removeListener('error', reject);
+            resolve();
+        });
+    });
     try {
+        await listen();
+    } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'EADDRINUSE')) {
+            throw error;
+        }
         const existing = await lstat(path);
         if (!existing.isSocket()) {
             throw new Error(`Refusing to replace non-socket path: ${path}`);
         }
-        await unlink(path);
-    } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
-            throw error;
+        // Only reclaim a dead listener; a second app must never detach the live Companion.
+        const probe = connect(path);
+        try {
+            const active = await new Promise<boolean>((resolve, reject) => {
+                probe.once('connect', () => resolve(true));
+                probe.once('error', (probeError: NodeJS.ErrnoException) => {
+                    if (probeError.code === 'ECONNREFUSED' || probeError.code === 'ENOENT') {
+                        resolve(false);
+                    } else {
+                        reject(probeError);
+                    }
+                });
+            });
+            if (active) {
+                throw new Error('Shuttle Companion is already running');
+            }
+        } finally {
+            probe.destroy();
         }
+        await unlink(path).catch((unlinkError: NodeJS.ErrnoException) => {
+            if (unlinkError.code !== 'ENOENT') { throw unlinkError; }
+        });
+        await listen();
     }
 };
 
@@ -266,7 +297,6 @@ export const serveDaemon = async (): Promise<void> => {
 
     const socketPath = getCompanionSocketPath();
     await mkdir(dirname(socketPath), { recursive: true });
-    await cleanStaleSocket(socketPath);
 
     const relay = new RelayClient({ baseURL: relayURL, deviceToken });
     const service = new CompanionService(relay);
@@ -277,20 +307,23 @@ export const serveDaemon = async (): Promise<void> => {
     const requestAuthorization = (
         title: string,
         services: SharedLocalService[],
+        retryID?: string,
     ): Promise<{ decision: AuthorizationDecision; id: string }> => {
-        const id = crypto.randomUUID();
-        process.stdout.write(`${JSON.stringify({
-            id,
-            resource: 'thread',
-            services,
-            title,
-            type: 'authorization-request',
-        })}\n`);
+        const id = retryID ?? crypto.randomUUID();
         return new Promise((resolve, reject) => {
             pendingAuthorizations.set(id, {
                 reject,
                 resolve: (decision) => resolve({ decision, id }),
             });
+            if (!retryID) {
+                process.stdout.write(`${JSON.stringify({
+                    id,
+                    resource: 'thread',
+                    services,
+                    title,
+                    type: 'authorization-request',
+                })}\n`);
+            }
         });
     };
     const reportAuthorizationResult = (
@@ -324,44 +357,53 @@ export const serveDaemon = async (): Promise<void> => {
             const object = getObject(params);
             const title = typeof object.title === 'string' ? object.title : undefined;
             const services = readSharedLocalServices(object.services);
-            const authorization = await requestAuthorization(title ?? 'Current Codex task', services);
-            if (!authorization.decision.approved) {
-                throw new Error('Task sharing was cancelled');
-            }
-            try {
-                const share = await service.shareThread(registeredThreadId, title);
-                const sharedThreadId = getCreatedResourceId(share, 'thread');
-                const sharedServices = await Promise.all(services.map((localService) => (
-                    service.shareLocalService(
-                        localService.name,
-                        localService.localURL,
+            let authorization = await requestAuthorization(title ?? 'Current Codex task', services);
+            while (authorization.decision.approved) {
+                try {
+                    const share = await service.shareThread(registeredThreadId, title);
+                    const sharedThreadId = getCreatedResourceId(share, 'thread');
+                    const sharedServices = await Promise.all(services.map((localService) => (
+                        service.shareLocalService(
+                            localService.name,
+                            localService.localURL,
+                            sharedThreadId,
+                        )
+                    )));
+                    const invitation = await service.createThreadInvite(
                         sharedThreadId,
-                    )
-                )));
-                const invitation = await service.createThreadInvite(
-                    sharedThreadId,
-                    authorization.decision.email,
-                    authorization.decision.expiresInHours,
-                    authorization.decision.permission,
-                    authorization.decision.canPreview && sharedServices.length > 0,
-                );
-                const inviteURL = getObject(invitation).inviteURL;
-                reportAuthorizationResult(authorization.id, {
-                    inviteURL: typeof inviteURL === 'string' ? inviteURL : undefined,
-                    sharedThreadId,
-                });
-                return { invitation, services: sharedServices, share };
-            } catch (error) {
-                reportAuthorizationResult(authorization.id, {
-                    error: error instanceof Error ? error.message : 'Task sharing failed',
-                });
-                throw error;
+                        {
+                            emails: authorization.decision.emails,
+                            expiresInHours: authorization.decision.expiresInHours,
+                            permission: authorization.decision.permission,
+                            canPreview: authorization.decision.canPreview && sharedServices.length > 0,
+                            singleUse: authorization.decision.singleUse,
+                        },
+                    );
+                    if (getObject(invitation).emailDelivery === 'failed') {
+                        throw new Error('授权已保存，但部分邀请邮件发送失败，请重试发送。');
+                    }
+                    const inviteURL = getObject(invitation).inviteURL;
+                    reportAuthorizationResult(authorization.id, {
+                        inviteURL: typeof inviteURL === 'string' ? inviteURL : undefined,
+                        sharedThreadId,
+                    });
+                    return { invitation, services: sharedServices, share };
+                } catch (error) {
+                    // 先恢复同一请求的等待，再让原表单显示错误；只在用户再次提交后重试。
+                    const retry = requestAuthorization(title ?? 'Current Codex task', services, authorization.id);
+                    reportAuthorizationResult(authorization.id, {
+                        error: error instanceof Error ? error.message : 'Task sharing failed',
+                    });
+                    authorization = await retry;
+                }
             }
+            throw new Error('Task sharing was cancelled');
         });
         peer.handle('shuttle.unshareThread', (params) => (
             service.unshareThread(getString(params, 'sharedThreadId'))
         ));
         peer.handle('shuttle.listSharedThreads', () => service.listSharedThreads());
+        peer.handle('shuttle.acceptInvite', (params) => service.acceptInvite(getString(params, 'inviteURL')));
         peer.handle('shuttle.readSharedThread', (params) => (
             service.readSharedThread(getString(params, 'sharedThreadId'))
         ));
@@ -388,10 +430,7 @@ export const serveDaemon = async (): Promise<void> => {
         peer.onClose(() => unregister?.());
     });
 
-    await new Promise<void>((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(socketPath, resolve);
-    });
+    await listenOnCompanionSocket(server, socketPath);
 
     let stopped = false;
     let deviceSocket: WebSocket | undefined;
@@ -573,7 +612,17 @@ export const serveDaemon = async (): Promise<void> => {
                 id?: unknown;
                 method?: unknown;
                 result?: unknown;
+                query?: unknown;
             };
+            if (request.method === 'recipients.search' && typeof request.query === 'string') {
+                const query = request.query;
+                void relay.searchRecipients(query).then((result) => {
+                    process.stdout.write(`${JSON.stringify({ type: 'recipients-result', query, users: getObject(result).users })}\n`);
+                }).catch(() => {
+                    process.stdout.write(`${JSON.stringify({ type: 'recipients-result', query, users: [], error: '暂时无法搜索邮箱，仍可手动输入。' })}\n`);
+                });
+                continue;
+            }
             if (request.method === 'authorization.respond' && typeof request.id === 'string') {
                 const pending = pendingAuthorizations.get(request.id);
                 if (pending) {
@@ -604,5 +653,5 @@ export const serveDaemon = async (): Promise<void> => {
     pendingAuthorizations.clear();
     deviceSocket?.close();
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    await unlink(socketPath).catch(() => undefined);
+    // Node removes the Unix socket when its server closes.
 };

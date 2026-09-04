@@ -41,9 +41,15 @@ Owners can revoke a grant or stop sharing the task. Collaborators can leave a ta
 
 ## Invitations
 
-An owner can invite a specific email address or create an expiring link. Accepting an invitation always requires authentication and never bypasses registration, domain, or task permission policies.
+Each shared task has one sharing link. Owners can allow anyone with that link or restrict access to multiple email addresses. All invitation emails use the same link; access is checked against the signed-in account. Email recipients already have permission and do not need to accept an invitation. New or unverified recipients must sign in and verify the invited address first. Registration and domain policies still apply.
 
-When SMTP is configured, Shuttle can send invitation, one-time sign-in, and email verification messages. Invitation emails contain metadata and an acceptance URL, not Codex task content.
+An unrestricted link may be used by multiple people or limited to one successful recipient. Merely opening the link does not consume it. A recipient who has already claimed it can continue using the share until access is revoked or expires.
+
+The owner chooses an authorization lifetime of 1, 7, or 30 days, or no expiration. The deadline is measured from the owner's authorization, not from each recipient's first visit. Expiration ends existing recipients' access to task reads, messages, and included services; it does not only prevent new invitations from being accepted.
+
+When SMTP is configured, Shuttle can send invitation, one-time sign-in, and email verification messages. Invitation emails contain metadata and the sharing URL, not Codex task content.
+
+Recipients can also give the full invitation link to the Shuttle Skill and ask it to accept. The MCP tool extracts the code and uses the account signed in through the local Companion. It only accepts links for that Companion's current Relay, enforces the same permissions as the Web page, and returns the task deeplink without reading its content.
 
 ## Codex collaboration
 
@@ -51,6 +57,7 @@ The Shuttle Plugin adds an MCP server and a collaboration Skill to Codex. Common
 
 - `share_thread`: open the native authorization window for the current task.
 - `list_shared_threads`: list task shares available to the signed-in user.
+- `accept_invite`: accept a full sharing link and return its task deeplink.
 - `read_shared_thread`: read an authorized task from its owner's online Companion.
 - `send_shared_message`: send a synchronous message to a shared task.
 - `share_local_service`: attach an explicitly named localhost service to an existing task share.

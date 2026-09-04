@@ -131,6 +131,7 @@ const upgradePreviewWebSocket = upgradeWebSocket(async (context) => {
                     protocols,
                     headers,
                     browser,
+                    access.expiresAt?.getTime(),
                 );
             } catch (error) {
                 browser.close(1011, error instanceof Error ? error.message : 'Preview unavailable');

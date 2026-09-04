@@ -43,6 +43,8 @@ function Invitation() {
         token ? ['accept-invite', token] as const : null,
         (_key, { arg }: { arg: string }) => acceptInvite(arg),
     );
+    const accessibleThreadId = acceptedThreadId
+        ?? (invitation.data?.invite.hasAccess ? invitation.data.invite.sharedThread.id : undefined);
 
     const accept = async () => {
         const result = await acceptance.trigger(token);
@@ -68,17 +70,17 @@ function Invitation() {
             <Card className="w-full max-w-md shadow-lg shadow-black/5">
                 <CardHeader className="text-center">
                     <CardTitle className="text-xl">
-                        {acceptedThreadId ? 'Invitation accepted' : 'Task invitation'}
+                        {accessibleThreadId ? 'Shared with you' : 'Task invitation'}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
-                        {acceptedThreadId
+                        {accessibleThreadId
                             ? 'Continue from your own Codex task with the prompt below.'
                             : 'Review exactly what this invitation permits before accepting.'}
                     </p>
                 </CardHeader>
                 <CardContent>
-                    {acceptedThreadId ? (
-                        <AcceptedInvitation sharedThreadId={acceptedThreadId} />
+                    {accessibleThreadId ? (
+                        <AcceptedInvitation sharedThreadId={accessibleThreadId} />
                     ) : !token ? (
                         <InvitationError message="This invitation link is incomplete." />
                     ) : session.isPending ? (
@@ -91,7 +93,7 @@ function Invitation() {
                             <div>
                                 <h2 className="font-semibold">Sign in to review this invitation</h2>
                                 <p className="mt-2 text-sm text-muted-foreground">
-                                    Email-bound invitations can only be accepted by the intended account.
+                                    Sign in with an authorized email to access this task.
                                 </p>
                             </div>
                             <Button asChild><a href={loginURL.toString()}>Continue to sign in</a></Button>
@@ -141,7 +143,7 @@ function Invitation() {
                                 )}
                                 <div>
                                     <dt className="text-muted-foreground">Expires</dt>
-                                    <dd className="mt-1 font-medium">{formatDate(invitation.data.invite.expiresAt)}</dd>
+                                    <dd className="mt-1 font-medium">{invitation.data.invite.expiresAt ? formatDate(invitation.data.invite.expiresAt) : 'Never'}</dd>
                                 </div>
                             </dl>
                             <Alert>
@@ -157,7 +159,7 @@ function Invitation() {
                         <p className="mt-4 text-sm text-destructive">{acceptance.error.message}</p>
                     )}
                 </CardContent>
-                {session.data && invitation.data && !acceptedThreadId && (
+                {session.data && invitation.data && !accessibleThreadId && (
                     <CardFooter className="flex-col gap-3">
                         <Button className="w-full" onClick={accept} disabled={acceptance.isMutating}>
                             {acceptance.isMutating && <Spinner />}
