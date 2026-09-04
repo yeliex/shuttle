@@ -5,7 +5,7 @@ import { SiteShell } from "@/components/site-shell";
 export default function Home() {
   return (
     <SiteShell>
-      <section className="mx-auto grid w-full max-w-6xl gap-14 px-6 py-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-28">
+      <section className="mx-auto grid w-full max-w-6xl gap-14 px-6 py-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:py-28">
         <div className="max-w-3xl">
           <h1 className="text-balance text-5xl font-semibold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
             Share the task. Keep your workspace.
@@ -29,12 +29,12 @@ export default function Home() {
             </Link>
           </div>
         </div>
-        <div>
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold">Set up with Codex</h2>
           <p className="mt-2 leading-7 text-muted-foreground">
             Copy this prompt into a Codex task to install and initialize Shuttle.
           </p>
-          <div className="mt-5">
+          <div className="mt-5 [&_pre]:whitespace-pre-wrap [&_pre]:break-words">
             <CodeBlock title="Prompt" copyable>
               Read https://shuttle.makesth.fun/Agents.md and set up Shuttle for this Codex task.
             </CodeBlock>
