@@ -106,6 +106,22 @@ test('unified sharing: email access, expiry, multiple recipients and single-use 
         assert.deepEqual(hostCalls, ['read', 'queue', 'read', 'queue'].map((operation) => ({
             operation, deviceId: 'device', threadId: 'local-task',
         })));
+        await context.test('归档拒绝通过 Relay 返回明确提示，附带任意内容的错误仍脱敏', async () => {
+            const originalDelivery = runtime.deliverMessage;
+            const archivedMessage = 'Codex task is archived. The message was not sent. Ask the owner to unarchive the task before trying again.';
+            let deliveries = 0;
+            try {
+                for (const message of [archivedMessage, `${archivedMessage} PRIVATE_ERROR_SENTINEL`]) {
+                    runtime.deliverMessage = async () => { deliveries += 1; throw new Error(message); };
+                    const response = await request(`/threads/${id}/messages`, 'alex', 'POST', { prompt: 'test' });
+                    assert.equal(response.status, message === archivedMessage ? 409 : 503);
+                    assert.deepEqual(await response.json(), { error: message === archivedMessage
+                        ? archivedMessage
+                        : 'Codex queue submission failed or its result is unknown. Check the task queue before sending again.' });
+                }
+                assert.equal(deliveries, 2);
+            } finally { runtime.deliverMessage = originalDelivery; }
+        });
         hostCalls.length = 0;
         // 未授权、未验证邮箱或不存在的分享，必须在调用本地宿主之前拒绝。
         for (const [target, user] of [[id, 'other'], [id, 'pending'], ['missing', 'alex']]) {

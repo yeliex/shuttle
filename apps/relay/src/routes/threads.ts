@@ -523,7 +523,12 @@ threads.post('/:sharedThreadId/messages', async (context) => {
     try {
         await deliverMessage(access.deviceId, access.codexThreadId, prompt);
         return context.json({ queued: true });
-    } catch {
+    } catch (error) {
+        // 只放行 Companion 的固定归档提示，其他设备错误仍需脱敏。
+        if (error instanceof Error
+            && error.message === 'Codex task is archived. The message was not sent. Ask the owner to unarchive the task before trying again.') {
+            return context.json({ error: error.message }, 409);
+        }
         return context.json({ error: 'Codex queue submission failed or its result is unknown. Check the task queue before sending again.' }, 503);
     }
 });

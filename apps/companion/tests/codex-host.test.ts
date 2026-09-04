@@ -35,6 +35,12 @@ createInterface({ input: process.stdin }).on('line', line => {
         if (p.itemsView !== 'full' || p.sortDirection !== 'asc') process.exit(3);
         write(request.id, { data: [{ id: p.cursor ? 'second' : 'first', items: [{ output: 'complete' }] }], nextCursor: p.threadId === 'loop' || !p.cursor ? 'page-2' : null });
     } else if (request.method === 'thread/queue/add') {
+        if (version === 'archived' || version === 'archived-with-details') {
+            const id = request.params.threadId;
+            const message = 'session ' + id + ' is archived. Run \`codex unarchive ' + id + '\` to unarchive it first.';
+            process.stdout.write(JSON.stringify({ id: request.id, error: { code: -32600, message: message + (version === 'archived-with-details' ? ' PRIVATE_ERROR_SENTINEL' : '') } }) + '\\n');
+            return;
+        }
         if (version === 'read-only') {
             process.stdout.write(JSON.stringify({ id: request.id, error: { code: -32601, message: 'Unknown method' } }) + '\\n');
             return;
@@ -78,6 +84,28 @@ test('并发请求复用 stdio 连接，完整分页只读取指定任务，发�
         assert.ok(calls.filter((call) => call.method === 'thread/turns/list').every((call) => call.threadId === 'one'));
         await assert.rejects(server.readThread('missing'), /history is unavailable/u);
         await assert.rejects(server.readCompleteThread('loop'), /history is unavailable/u);
+    } finally { await server.close(); await rm(fake.directory, { recursive: true, force: true }); }
+});
+
+test('归档拒绝明确提示未发送，不重试或恢复任务，其他宿主错误仍脱敏', async () => {
+    const fake = await fixture();
+    const server = new CodexAppServer({ executable: async () => fake.executable, checkIntervalMilliseconds: 0 });
+    try {
+        await fake.install('archived');
+        await assert.rejects(server.sendMessage('one', 'hello'), {
+            message: 'Codex task is archived. The message was not sent. Ask the owner to unarchive the task before trying again.',
+        });
+        assert.equal((await server.readThread('one')).thread.id, 'one');
+        const calls = await fake.calls();
+        assert.equal(calls.filter((call) => call.method === 'thread/queue/add').length, 1);
+        assert.equal(calls.filter((call) => call.event === 'enqueued').length, 0);
+        assert.ok(calls.every((call) => !['thread/list', 'thread/resume', 'thread/unarchive', 'turn/start'].includes(call.method)));
+        await fake.install('archived-with-details');
+        await assert.rejects(server.sendMessage('one', 'hello'), (error: Error) => {
+            assert.match(error.message, /result is unknown/u);
+            assert.doesNotMatch(error.message, /PRIVATE_ERROR_SENTINEL/u);
+            return true;
+        });
     } finally { await server.close(); await rm(fake.directory, { recursive: true, force: true }); }
 });
 

@@ -22,6 +22,7 @@ Use Shuttle tools as the collaboration boundary.
 
 ## Collaborate
 
+- Continue collaboration in the current Codex task. Create a new task only when the user explicitly asks for one.
 - When the user asks to accept or join a share, pass the complete `/app/invite#<code>` link to `accept_invite` as `inviteURL`. The tool extracts the code, checks the Relay, and uses the current Shuttle account. Do not open the browser merely to accept it.
 - Use the returned `sharedThreadId` and deeplink for subsequent requested collaboration. Email recipients who already have access do not claim again. Accepting alone does not ask you to read the task or send a message.
 - If the invitation belongs to another Relay, ask the user to select it and sign in through Shuttle setup; do not switch accounts or forward credentials automatically.
@@ -30,6 +31,7 @@ Use Shuttle tools as the collaboration boundary.
 - Without an exact link, use `list_shared_threads` to resolve an authorized share.
 - `read_shared_thread` reads the complete persisted task history from its owner's online Companion. It does not include unsaved streaming output or a Shuttle-maintained offline copy.
 - Call `send_shared_message` only with message permission. Success means Codex's local queue accepted the message, not that the owner has read it or the task has processed it. Loaded idle tasks process queued messages; busy tasks wait until their current turn finishes. Unloaded or interrupted tasks may wait for the owner to load or resume them. Shuttle keeps no message queue or delivery history. Never automatically retry an uncertain submission.
+- If sending is rejected because the task is archived, report that the message was not sent and ask the owner to unarchive it. Do not unarchive the task or retry automatically.
 
 ## Safety
 

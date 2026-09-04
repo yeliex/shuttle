@@ -142,7 +142,7 @@ export class CodexAppServer implements CodexHost {
             }) as { queuedSubmission?: { id?: unknown } };
             if (typeof result?.queuedSubmission?.id !== 'string') throw new Error('Invalid Codex queue response');
             return { status: 'queued', threadId, queuedSubmissionId: result.queuedSubmission.id };
-        }, true);
+        }, threadId);
     }
 
     private async readMetadata(peer: JsonLinePeer, threadId: string): Promise<ThreadResult> {
@@ -151,15 +151,20 @@ export class CodexAppServer implements CodexHost {
         return result;
     }
 
-    private async execute<T>(operation: (peer: JsonLinePeer) => Promise<T>, mutation = false): Promise<T> {
+    private async execute<T>(operation: (peer: JsonLinePeer) => Promise<T>, messageThreadId?: string): Promise<T> {
         const connection = await this.ensureConnection();
         const request = operation(connection.peer);
         this.inFlight.add(request);
         try {
             return await request;
-        } catch {
+        } catch (error) {
+            // 仅将当前任务的已知归档拒绝映射为固定提示，不透传宿主错误中的任意内容。
+            if (messageThreadId !== undefined && error instanceof Error
+                && error.message === `session ${messageThreadId} is archived. Run \`codex unarchive ${messageThreadId}\` to unarchive it first.`) {
+                throw new Error('Codex task is archived. The message was not sent. Ask the owner to unarchive the task before trying again.');
+            }
             // 宿主错误可能包含任务正文或输入；不把原始 stderr/JSON-RPC 错误转发给 Relay。
-            throw new Error(mutation
+            throw new Error(messageThreadId !== undefined
                 ? 'Codex queue submission failed or its result is unknown. It was not retried; check the task queue before sending again.'
                 : 'Codex task history is unavailable. The task may not exist, or this Codex version may be incompatible.');
         } finally {
