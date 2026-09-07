@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Shuttle application icon</title>
+  <desc id="desc">A deep teal Flow S mark on a light ivory-to-mint application tile.</desc>
+  <defs>
+    <linearGradient id="tile" x1="22" y1="8" x2="108" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff9ed" />
+      <stop offset=".48" stop-color="#eef7ec" />
+      <stop offset="1" stop-color="#d9f1e8" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="29" fill="url(#tile)" />
+  <path d="M29 68C40 44 55 44 64 64s24 20 35-4" fill="none" stroke="#20584f" stroke-width="10" stroke-linecap="round" />
+  <circle cx="24" cy="79" r="9.5" fill="none" stroke="#20584f" stroke-width="5.5" />
+  <circle cx="104" cy="49" r="9.5" fill="none" stroke="#20584f" stroke-width="5.5" />
+</svg>
