@@ -20,6 +20,7 @@
     "longDescription": "Shuttle lets collaborators read authorized Codex task history, queue messages for the owner's Codex task, and open approved local previews while everyone keeps their own workspace.",
     "developerName": "yeliex",
     "category": "Productivity",
+    "websiteURL": "https://github.com/yeliex/shuttle",
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/icon.svg",
     "capabilities": [
