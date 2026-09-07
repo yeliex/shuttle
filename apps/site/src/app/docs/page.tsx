@@ -58,6 +58,14 @@ export default function Documentation() {
 
           <section id="collaborate" className="docs-section">
             <h2>Collaborate from Codex</h2>
+            <h3>Connect product, design, and engineering</h3>
+            <ol>
+              <li>Product shares the Codex task behind the requirements and adds the invitation link and collaboration prompt to the PRD alongside the prototype.</li>
+              <li>Authorized designers and engineers ask their agents to read the complete persisted conversation, then continue in their own existing Codex tasks.</li>
+              <li>Design and engineering share their tasks back with message permission. Product can then ask their agent to send requirement changes and the source task link to those tasks; teammates can read the updated conversation for context.</li>
+              <li>Engineering attaches a specific localhost service and grants preview access. Product and design review the running work remotely and send feedback from their own Codex tasks.</li>
+            </ol>
+            <p>The PRD contains a sharing link, not an embedded conversation copy. Access covers the whole shared task. Changes are sent explicitly; Shuttle does not automatically watch or synchronize conversations. The relevant owner&apos;s Companion must be online.</p>
             <h3>Share a task</h3>
             <p>Ask Codex to share the current task through Shuttle, or invoke the Share Thread Skill with <code>/share-thread</code>. The native authorization window lets you share one link with anyone or restrict it to multiple email addresses, grant read or message access, and include local previews.</p>
             <p>Email recipients have access after signing in with a verified matching address, without an acceptance step. Unrestricted links can optionally be limited to one successful recipient; opening a link does not consume it.</p>

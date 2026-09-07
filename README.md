@@ -1,6 +1,6 @@
 # Shuttle
 
-Shuttle lets people collaborate across Codex tasks while everyone keeps working in their own local Codex workspace. Share a task explicitly, let a collaborator read it or send feedback from their own task, and optionally expose the local preview attached to that work.
+Shuttle connects product managers, designers, and engineers through the Codex conversations behind their work. Attach a shared conversation link to a PRD so teammates' agents can read the decisions behind the requirements, send changes to each other's shared tasks, and review local work through an authorized preview. Everyone keeps working in their own local Codex workspace.
 
 [Download for macOS](https://github.com/yeliex/shuttle/releases/latest) · [Documentation](https://shuttle.makesth.fun/docs/) · [Open Shuttle](https://shuttle.makesth.fun/app/)
 
@@ -8,6 +8,19 @@ Requires an Apple Silicon Mac running macOS 15 or later.
 
 > [!IMPORTANT]
 > Shuttle is an early release for macOS. Its Codex Desktop integration is version-sensitive, so keep Shuttle and Codex Desktop up to date and review the privacy boundaries before using it with sensitive work.
+
+## From product decisions to a working preview
+
+A PRD and prototype describe what to build. The conversation that produced them also explains why: constraints, alternatives, edge cases, and decisions. When each teammate starts their own agent workflow with only the documents, that context has to be reconstructed. Later changes mean another round of messages and handoffs.
+
+Shuttle keeps that context available across roles:
+
+1. **Product shares the background.** The product manager shares the Codex task used to develop the requirements and adds its invitation link and collaboration prompt to the PRD alongside the prototype. Authorized designers and engineers can ask their own agents to read the complete persisted conversation history.
+2. **Design and engineering continue locally.** Each teammate uses the shared context in their existing Codex task, alongside their own files and tools. They can share their tasks back with message permission for two-way collaboration.
+3. **Changes reach the task doing the work.** After updating a requirement, the product manager asks their agent to send the change and the source task link to the designer's and engineer's shared tasks. Recipients can read the updated source conversation for the reasoning. Updates are sent explicitly; Shuttle does not automatically watch or synchronize conversations.
+4. **Product reviews the running result.** The engineer attaches a specific localhost service to their shared task and grants preview access. Product and design can open it remotely in a browser and send feedback to the engineering task from their own Codex tasks, without setting up the development environment.
+
+The PRD contains a link to an authorized conversation, not an embedded copy of it. Access covers the whole shared task, so choose a task whose history is appropriate for those collaborators. Each destination task must be shared back with message permission to receive changes. The relevant owner's Companion must be online for reads, messages, and previews.
 
 ## What Shuttle does
 

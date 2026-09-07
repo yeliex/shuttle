@@ -8,11 +8,12 @@ export default function Home() {
       <section className="mx-auto grid w-full max-w-6xl gap-14 px-6 py-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-center lg:py-28">
         <div className="max-w-3xl">
           <h1 className="text-balance text-5xl font-semibold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-            Share the task. Keep your workspace.
+            Bring the why along with the work.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-            Shuttle connects collaborators through explicitly shared Codex tasks. Read context,
-            send feedback, or open an approved local preview while everyone stays in their own task.
+            Connect product, design, and engineering through the Codex conversations behind your PRD.
+            Share the context, send requirement changes to teammates&apos; tasks, and review local work remotely.
+            Everyone keeps their own workspace.
           </p>
           <div className="mt-9 flex flex-wrap items-start gap-3">
             <div className="flex flex-col gap-2">
@@ -45,13 +46,18 @@ export default function Home() {
       <section className="border-y bg-muted/35">
         <div className="mx-auto w-full max-w-6xl px-6 py-20">
           <h2 className="max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">
-            Private by default. Live when shared.
+            From product decisions to a working preview.
           </h2>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
+            The PRD and prototype describe what to build. The conversation behind them explains why.
+            Give your teammates&apos; agents access to both, so each handoff carries the decisions forward.
+          </p>
           <div className="mt-12 divide-y border-y">
             {[
-              ["01", "Authorize", "The owner chooses an existing task, a recipient or link, and the exact permission."],
-              ["02", "Collaborate", "The collaborator reads live context or sends a synchronous message from their own Codex task."],
-              ["03", "Revoke", "The owner can remove access at any time without sharing control of their desktop UI."],
+              ["01", "Share the why", "Product adds a shared Codex conversation link to the PRD alongside the prototype. Authorized teammates can ask their agents to read the complete persisted history."],
+              ["02", "Build on context", "Designers and engineers continue in their own local Codex tasks, with the product decisions available alongside their own files and tools."],
+              ["03", "Send the change", "When requirements change, ask your agent to send the update to teammates’ tasks shared back with message permission. They can read the source conversation for the reasoning."],
+              ["04", "Review the result", "Engineering shares an approved local preview. Product and design open the running work remotely and send feedback from their own Codex tasks."],
             ].map(([number, title, description]) => (
               <div key={number} className="grid gap-3 py-7 sm:grid-cols-[4rem_10rem_1fr] sm:items-baseline">
                 <span className="font-mono text-sm text-muted-foreground">{number}</span>
@@ -65,21 +71,24 @@ export default function Home() {
 
       <section className="mx-auto grid w-full max-w-6xl gap-12 px-6 py-20 lg:grid-cols-3">
         <div>
-          <h2 className="text-xl font-semibold">Shared tasks</h2>
+          <h2 className="text-xl font-semibold">Context behind the PRD</h2>
           <p className="mt-3 leading-7 text-muted-foreground">
-            Read an authorized task directly from its owner&apos;s online Companion. Shuttle keeps no task snapshot.
+            Share a conversation link alongside your documents so teammates can read the constraints,
+            alternatives, and decisions behind the requirements. Access covers the whole shared task.
           </p>
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Synchronous feedback</h2>
+          <h2 className="text-xl font-semibold">Updates where work happens</h2>
           <p className="mt-3 leading-7 text-muted-foreground">
-            A successful send means the owner&apos;s Codex task accepted the message. There is no Relay message queue.
+            Send changes and feedback directly to an authorized teammate&apos;s task.
+            Updates are sent explicitly; successful delivery means the message is queued, with processing to follow.
           </p>
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Local previews</h2>
+          <h2 className="text-xl font-semibold">Review without local setup</h2>
           <p className="mt-3 leading-7 text-muted-foreground">
-            Attach an explicit localhost service with HTTP, SSE, WebSocket, and common HMR support to the task share.
+            Open an engineer&apos;s approved local service in your browser without setting up their development
+            environment. The owner chooses who can access it and can revoke access at any time.
           </p>
         </div>
       </section>
@@ -97,7 +106,8 @@ export default function Home() {
           </Link>
         </div>
         <p className="mt-6 text-sm leading-6 text-muted-foreground">
-          Shuttle is an early macOS release and its Codex Desktop integration is version-sensitive. Review the compatibility and privacy notes before using it with sensitive work.
+          Shuttle is an early macOS release for Codex Desktop. The owner&apos;s Companion must be online for reads,
+          messages, and previews. Review the compatibility and privacy notes before using it with sensitive work.
         </p>
       </section>
     </SiteShell>

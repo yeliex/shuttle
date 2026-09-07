@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Shuttle — Collaboration for Codex tasks",
+    default: "Shuttle — Connect product, design, and engineering in Codex",
     template: "%s — Shuttle",
   },
-  description: "Share Codex tasks, exchange feedback, and preview local work without sharing control of your workspace.",
+  description: "Share the Codex conversations behind your PRD, send requirement changes to teammates' tasks, and review local work remotely. Everyone keeps their own workspace.",
   icons: {
     icon: "/icon.svg",
   },
